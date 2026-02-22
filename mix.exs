@@ -2,7 +2,7 @@ defmodule JidoCluster.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/agentjido/jido"
+  @source_url "https://github.com/agentjido/jido_cluster"
   @description "Distributed Jido instance management and storage adapters for multi-node Elixir clusters."
 
   def project do
@@ -84,13 +84,14 @@ defmodule JidoCluster.MixProject do
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: [:dev, :test]},
       {:doctor, "~> 0.21", only: :dev, runtime: false},
+      {:git_hooks, "~> 0.8", only: [:dev, :test], runtime: false},
       {:git_ops, "~> 2.9", only: :dev, runtime: false}
     ]
   end
 
   defp aliases do
     [
-      setup: ["deps.get"],
+      setup: ["deps.get", "git_hooks.install"],
       test: "test --exclude flaky",
       q: ["quality"],
       quality: [
