@@ -89,6 +89,10 @@ stats = Jido.Cluster.InstanceManager.stats(MyApp.ClusterManager)
 - Rebalancer only moves keys when storage backend is shared.
 - ETS migrations are skipped and emit telemetry events.
 
+## Production Drill
+
+- [Fly multi-region failover demo](guides/fly-multi-region-failover-demo.md)
+
 ## Testing Multi-Node Behavior
 
 The package includes distributed tests under `test/jido_cluster/distributed/` that use:

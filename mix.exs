@@ -136,6 +136,7 @@ defmodule JidoCluster.MixProject do
       extras: [
         "README.md",
         "guides/getting-started.md",
+        "guides/fly-multi-region-failover-demo.md",
         "CHANGELOG.md",
         "CONTRIBUTING.md",
         "LICENSE"
