@@ -200,7 +200,6 @@ defmodule JidoCluster.Rebalancer do
       :ok
     else
       {:error, _} = error -> error
-      other -> {:error, other}
     end
   end
 
