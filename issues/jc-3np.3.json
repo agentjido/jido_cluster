@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-03-15T15:01:09Z",
+  "description": "Deliverables:\n- Move clustered failover from in-memory-only recovery to Bedrock-backed recovery using Jido.Cluster.Storage.Bedrock.\n- Support handoff and crash failover where the new owner can thaw durable state instead of depending only on standby memory.\n\nAcceptance:\n- A two-node clustered singleton can survive owner loss and planned handoff with Bedrock configured.\n- Acknowledged state is preserved across restart and failover.",
+  "id": "jc-3np.3",
+  "labels": [],
+  "parent": "jc-3np",
+  "priority": 1,
+  "status": "open",
+  "title": "Implement durable Bedrock-backed singleton failover",
+  "type": "task",
+  "updated_at": "2026-03-15T15:01:09Z"
+}
