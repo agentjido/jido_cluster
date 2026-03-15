@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-03-15T15:01:09Z",
+  "description": "Deliverables:\n- Extend from one logical singleton to many keyed singletons on the same runtime model.\n- Harden many-key distribution, rebalance fairness, by-node stats, migration limits, and conservative placement behavior on shared storage.\n\nAcceptance:\n- Multi-key acceptance proves different nodes can be primary for different keys.\n- Rebalancing preserves per-key state.\n- Stats and ownership remain deterministic.",
+  "id": "jc-3np.5",
+  "labels": [],
+  "parent": "jc-3np",
+  "priority": 1,
+  "status": "open",
+  "title": "Harden keyed fleet distribution and rebalance",
+  "type": "task",
+  "updated_at": "2026-03-15T15:01:09Z"
+}
