@@ -4,7 +4,8 @@
   "blocks": [
     "jc-3np.2",
     "jc-3np.3",
-    "jc-3np.4"
+    "jc-3np.4",
+    "jc-3np.5"
   ],
   "created": "2026-03-15T15:01:09Z",
   "description": "Deliverables:\n- Make the skipped reconnect-heal path converge deterministically after partition heal.\n- Finalize epoch and tie-break behavior so exactly one primary survives per key.\n- Unskip the deferred scenario in .spec/specs/jido_cluster.ephemeral_runtime.spec.md.\n\nAcceptance:\n- The current skipped reconnect-heal distributed test is green.\n- Exactly one primary remains after heal.\n- The spec exception is removed.",
