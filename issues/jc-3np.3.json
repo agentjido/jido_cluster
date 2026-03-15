@@ -4,7 +4,8 @@
     "jc-3np.1"
   ],
   "blocks": [
-    "jc-3np.4"
+    "jc-3np.4",
+    "jc-3np.5"
   ],
   "created": "2026-03-15T15:01:09Z",
   "description": "Deliverables:\n- Move clustered failover from in-memory-only recovery to Bedrock-backed recovery using Jido.Cluster.Storage.Bedrock.\n- Support handoff and crash failover where the new owner can thaw durable state instead of depending only on standby memory.\n\nAcceptance:\n- A two-node clustered singleton can survive owner loss and planned handoff with Bedrock configured.\n- Acknowledged state is preserved across restart and failover.",
