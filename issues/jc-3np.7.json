@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-03-15T15:01:09Z",
+  "description": "Deliverables:\n- Define the disconnected-island coordination contract using Bedrock lease records and fencing tokens.\n- Decide claim shape, renewal cadence, expiry behavior, stale-writer rejection, and how this plugs into coordination_backend: {:bedrock_lease, ...}.\n\nAcceptance:\n- The lease/fencing contract is specd, typed, and testable without relying on connected-BEAM membership.",
+  "id": "jc-3np.7",
+  "labels": [],
+  "parent": "jc-3np",
+  "priority": 2,
+  "status": "open",
+  "title": "Design Bedrock lease and fencing model",
+  "type": "task",
+  "updated_at": "2026-03-15T15:01:09Z"
+}
