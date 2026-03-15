@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jc-3np.3"
+  ],
   "blocks": [],
   "created": "2026-03-15T15:01:09Z",
   "description": "Deliverables:\n- Make the Fly multi-region story operational instead of illustrative.\n- Align the guide, telemetry expectations, and acceptance tests with a repeatable failover drill for durable clustered keys.\n\nAcceptance:\n- The guide and acceptance tests tell one coherent operator story for durable regional failover.\n- The drill defines what recovered means and which telemetry proves it.",
