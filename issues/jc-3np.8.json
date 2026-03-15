@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-03-15T15:01:09Z",
+  "description": "Deliverables:\n- Implement the disconnected-island execution mode on top of the lease backend.\n- Allow one logical owner across separate Erlang islands.\n- Reject stale lease holders.\n- Define heal and reacquire behavior after partitions and reconnects.\n\nAcceptance:\n- Two-island acceptance covers acquire, renew, failover on lease expiry, stale lease rejection, and reconnect without same-key dual ownership.",
+  "id": "jc-3np.8",
+  "labels": [],
+  "parent": "jc-3np",
+  "priority": 2,
+  "status": "open",
+  "title": "Implement disconnected-island singleton runtime",
+  "type": "task",
+  "updated_at": "2026-03-15T15:01:09Z"
+}
