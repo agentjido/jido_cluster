@@ -1,0 +1,14 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-03-15T15:01:09Z",
+  "description": "Complete the clustered runtime in four phases: connected-BEAM convergence, durable Bedrock-backed singleton failover, keyed fleet hardening, and disconnected-island lease/fencing.\n\nPublic contract choices:\n- Keep Jido.Cluster.InstanceManager as the stable API surface: get/lookup/call/cast/stop/stats/owner_node.\n- Keep one primary per key with optional standby. No same-key multi-master mode.\n- Keep ownership and coordination in jido_cluster; keep persistence in Bedrock.\n- Keep :connected_beam as the V1 backend. Add {:bedrock_lease, ...} only in the disconnected-island phase.\n- Jido.Cluster.Storage.Bedrock is the durable state backend for clustered failover; Bedrock does not own agent placement.\n- No distributed worker-pool API is part of this roadmap. The clustered unit stays a keyed singleton, later expanded to a keyed fleet.\n\nTest and acceptance shape:\n- Keep using .spec as the current-truth contract layer and update the relevant subject per task.\n- Keep fast unit/contract coverage in default mix test.\n- Keep heavy real-Bedrock acceptance tagged and excluded by default, but required for the durability tasks.\n- Success bar: connected-BEAM heal converges to one primary per key; durable Bedrock-backed failover survives owner loss and restart; many-key fleet behavior is deterministic and state-preserving; disconnected islands use lease/fencing instead of same-key dual execution.\n\nAssumptions:\n- This roadmap covers the full plan, not only the next milestone.\n- Issue titles in this roadmap are canonical and should stay stable for dependency clarity.\n- Same-key multi-master behavior is explicitly out of scope.",
+  "id": "jc-3np",
+  "labels": [],
+  "priority": 1,
+  "status": "open",
+  "title": "Jido Cluster Distributed Runtime Roadmap",
+  "type": "epic",
+  "updated_at": "2026-03-15T15:01:09Z"
+}
