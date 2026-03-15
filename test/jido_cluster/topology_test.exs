@@ -7,6 +7,21 @@ defmodule JidoCluster.TopologyTest do
     assert node() in Topology.connected_nodes()
   end
 
+  test "quorum_met?/2 returns true when node count meets the threshold" do
+    nodes = [:"a@127.0.0.1", :"b@127.0.0.1", :"c@127.0.0.1"]
+
+    assert Topology.quorum_met?(1, nodes)
+    assert Topology.quorum_met?(2, nodes)
+    assert Topology.quorum_met?(3, nodes)
+    refute Topology.quorum_met?(4, nodes)
+  end
+
+  test "leader_node/1 returns the smallest visible node name" do
+    nodes = [:"c@127.0.0.1", :"a@127.0.0.1", :"b@127.0.0.1"]
+
+    assert Topology.leader_node(Enum.sort(nodes)) == :"a@127.0.0.1"
+  end
+
   test "owner_node is deterministic for a fixed node list" do
     nodes = [:"a@127.0.0.1", :"b@127.0.0.1", :"c@127.0.0.1"]
 

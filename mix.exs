@@ -92,7 +92,7 @@ defmodule JidoCluster.MixProject do
   defp aliases do
     [
       setup: ["deps.get", "git_hooks.install"],
-      test: "test --exclude flaky",
+      test: "test --exclude flaky --exclude real_bedrock",
       q: ["quality"],
       quality: [
         "format --check-formatted",

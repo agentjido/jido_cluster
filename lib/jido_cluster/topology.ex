@@ -14,6 +14,20 @@ defmodule JidoCluster.Topology do
     |> Enum.sort()
   end
 
+  @doc "Returns true when the connected node set satisfies the required quorum size."
+  @spec quorum_met?(pos_integer(), [node()]) :: boolean()
+  def quorum_met?(min_quorum_nodes, nodes \\ connected_nodes())
+      when is_integer(min_quorum_nodes) and min_quorum_nodes > 0 and is_list(nodes) do
+    length(nodes) >= min_quorum_nodes
+  end
+
+  @doc "Returns the deterministic leader node for the connected node set."
+  @spec leader_node([node()]) :: node()
+  def leader_node(nodes \\ connected_nodes())
+
+  def leader_node([node | _rest]), do: node
+  def leader_node([]), do: Node.self()
+
   @doc "Returns the owner node for the given manager and key."
   @spec owner_node(term(), term(), [node()]) :: node()
   def owner_node(manager, key, nodes)

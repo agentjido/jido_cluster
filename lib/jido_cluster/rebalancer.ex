@@ -109,16 +109,14 @@ defmodule JidoCluster.Rebalancer do
   end
 
   defp do_tick(state) do
-    if leader?() do
+    if leader?(state.manager) and cluster_available?(state.manager) do
       rebalance(state)
     end
   end
 
-  defp leader? do
-    case Topology.connected_nodes() do
-      [] -> true
-      nodes -> Node.self() == hd(nodes)
-    end
+  defp leader?(manager) do
+    nodes = Topology.connected_nodes()
+    Node.self() == Topology.leader_node(nodes) and cluster_available?(manager, nodes)
   end
 
   defp rebalance(state) do
@@ -221,6 +219,10 @@ defmodule JidoCluster.Rebalancer do
 
   defp shared_backend?(nil), do: false
   defp shared_backend?(storage), do: StorageCapabilities.shared_backend?(storage)
+
+  defp cluster_available?(manager, nodes \\ Topology.connected_nodes()) do
+    InstanceManagerConfig.cluster_available?(manager, nodes)
+  end
 
   defp emit(stage, metadata) when stage in [:start, :success, :failure, :skipped] do
     :telemetry.execute([:jido_cluster, :rebalancer, :migration, stage], %{count: 1}, metadata)

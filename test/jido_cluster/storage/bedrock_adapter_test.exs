@@ -91,4 +91,43 @@ defmodule JidoCluster.Storage.BedrockAdapterTest do
     assert {:error, :conflict} =
              Bedrock.append_thread(thread_id, [%{kind: :note, payload: %{n: 2}}], Keyword.put(opts, :expected_rev, 0))
   end
+
+  test "load_thread reconstructs entries written under a shared prefix" do
+    opts = opts()
+    thread_id = "thread-#{System.unique_integer([:positive])}"
+
+    assert {:ok, appended} =
+             Bedrock.append_thread(
+               thread_id,
+               [
+                 %{kind: :note, payload: %{n: 1}},
+                 %{kind: :note, payload: %{n: 2}}
+               ],
+               opts
+             )
+
+    assert appended.rev == 2
+
+    assert {:ok, loaded} = Bedrock.load_thread(thread_id, opts)
+    assert loaded.rev == 2
+    assert Enum.map(loaded.entries, & &1.payload.n) == [1, 2]
+  end
+
+  test "delete_thread clears meta and entry keys" do
+    opts = opts()
+    thread_id = "thread-#{System.unique_integer([:positive])}"
+
+    assert {:ok, _thread} =
+             Bedrock.append_thread(
+               thread_id,
+               [
+                 %{kind: :note, payload: %{n: 1}},
+                 %{kind: :note, payload: %{n: 2}}
+               ],
+               opts
+             )
+
+    assert :ok = Bedrock.delete_thread(thread_id, opts)
+    assert :not_found = Bedrock.load_thread(thread_id, opts)
+  end
 end

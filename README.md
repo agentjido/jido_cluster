@@ -5,6 +5,16 @@
 It layers cluster ownership, routing, and conservative rebalancing around `Jido.Agent.InstanceManager`, plus
 shared persistence adapters for multi-node recovery.
 
+## Alpha Status
+
+`jido_cluster` is alpha-quality and is being developed in the open while the
+distributed ownership and failover model is still changing.
+
+- Do not use this package for production systems yet.
+- The cluster coordination and durability story is still actively being built.
+- Bedrock-backed clustered scenarios are still under active integration work.
+- Expect API changes, incomplete behaviors, and breaking changes.
+
 Primary public namespace: `Jido.Cluster.*` (legacy `JidoCluster.*` remains available).
 
 ## Features

@@ -9,7 +9,9 @@ defmodule JidoCluster.InstanceManager do
   use Supervisor
 
   alias JidoCluster.ClusterFormation
+  alias JidoCluster.Internal.InstanceManagerConfig
   alias JidoCluster.Internal.Remote
+  alias JidoCluster.PartitionMonitor
   alias JidoCluster.Rebalancer
   alias JidoCluster.Topology
 
@@ -56,49 +58,48 @@ defmodule JidoCluster.InstanceManager do
   @impl true
   def init(opts) do
     manager = Keyword.fetch!(opts, :name)
-
-    children = []
-    children = maybe_add_cluster_formation(children, opts)
+    cluster_config = extract_cluster_config(opts)
+    :ok = InstanceManagerConfig.put_cluster(manager, cluster_config)
 
     local_manager_opts = extract_local_manager_opts(opts)
-    children = [Jido.Agent.InstanceManager.child_spec(local_manager_opts) | children]
+    children = [Jido.Agent.InstanceManager.child_spec(local_manager_opts)]
+    children = maybe_add_cluster_formation(children, opts)
+    children = maybe_add_partition_monitor(children, manager, cluster_config)
+    children = maybe_add_rebalancer(children, opts, manager, cluster_config)
 
-    if Keyword.get(opts, :rebalance, true) do
-      rebalancer_opts =
-        opts
-        |> extract_rebalancer_opts(manager)
-
-      children = [Rebalancer.child_spec(rebalancer_opts) | children]
-      Supervisor.init(children, strategy: :one_for_one)
-    else
-      Supervisor.init(children, strategy: :one_for_one)
-    end
+    Supervisor.init(children, strategy: :one_for_one)
   end
 
   @doc "Gets or starts an agent by key on the owner node."
   @spec get(manager(), key(), keyword()) :: {:ok, pid()} | {:error, term()}
   def get(manager, key, opts \\ []) do
-    owner = owner_node(manager, key)
-    timeout_ms = Keyword.get(opts, :rpc_timeout_ms, @default_rpc_timeout_ms)
+    with :ok <- ensure_cluster_available(manager) do
+      owner = owner_node(manager, key)
+      timeout_ms = Keyword.get(opts, :rpc_timeout_ms, @default_rpc_timeout_ms)
 
-    case Remote.rpc(owner, Jido.Agent.InstanceManager, :get, [manager, key, opts], timeout_ms) do
-      {:ok, {:ok, pid}} when is_pid(pid) -> {:ok, pid}
-      {:ok, {:error, _reason} = error} -> error
-      {:ok, other} -> {:error, {:unexpected_get_result, other}}
-      {:error, reason} -> {:error, reason}
+      case Remote.rpc(owner, Jido.Agent.InstanceManager, :get, [manager, key, opts], timeout_ms) do
+        {:ok, {:ok, pid}} when is_pid(pid) -> {:ok, pid}
+        {:ok, {:error, _reason} = error} -> error
+        {:ok, other} -> {:error, {:unexpected_get_result, other}}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
   @doc "Looks up an existing agent by key on the owner node."
   @spec lookup(manager(), key()) :: {:ok, pid()} | :error
   def lookup(manager, key) do
-    owner = owner_node(manager, key)
+    if cluster_available?(manager) do
+      owner = owner_node(manager, key)
 
-    case Remote.rpc(owner, Jido.Agent.InstanceManager, :lookup, [manager, key], @default_rpc_timeout_ms) do
-      {:ok, {:ok, pid}} when is_pid(pid) -> {:ok, pid}
-      {:ok, :error} -> lookup_any_node(manager, key)
-      {:ok, _other} -> lookup_any_node(manager, key)
-      {:error, _reason} -> lookup_any_node(manager, key)
+      case Remote.rpc(owner, Jido.Agent.InstanceManager, :lookup, [manager, key], @default_rpc_timeout_ms) do
+        {:ok, {:ok, pid}} when is_pid(pid) -> {:ok, pid}
+        {:ok, :error} -> lookup_any_node(manager, key)
+        {:ok, _other} -> lookup_any_node(manager, key)
+        {:error, _reason} -> lookup_any_node(manager, key)
+      end
+    else
+      :error
     end
   end
 
@@ -122,23 +123,25 @@ defmodule JidoCluster.InstanceManager do
   @doc "Stops an agent by key on the node where it currently exists."
   @spec stop(manager(), key()) :: :ok | {:error, :not_found} | {:error, term()}
   def stop(manager, key) do
-    owner = owner_node(manager, key)
+    with :ok <- ensure_cluster_available(manager) do
+      owner = owner_node(manager, key)
 
-    case Remote.rpc(owner, Jido.Agent.InstanceManager, :stop, [manager, key], @default_rpc_timeout_ms) do
-      {:ok, :ok} ->
-        :ok
+      case Remote.rpc(owner, Jido.Agent.InstanceManager, :stop, [manager, key], @default_rpc_timeout_ms) do
+        {:ok, :ok} ->
+          :ok
 
-      {:ok, {:error, :not_found}} ->
-        stop_any_node(manager, key)
+        {:ok, {:error, :not_found}} ->
+          stop_any_node(manager, key)
 
-      {:ok, {:error, _} = error} ->
-        error
+        {:ok, {:error, _} = error} ->
+          error
 
-      {:ok, other} ->
-        {:error, {:unexpected_stop_result, other}}
+        {:ok, other} ->
+          {:error, {:unexpected_stop_result, other}}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -181,10 +184,36 @@ defmodule JidoCluster.InstanceManager do
         children
 
       true ->
-        [ClusterFormation.child_spec(name: ClusterFormation) | children]
+        children ++ [ClusterFormation.child_spec(name: ClusterFormation)]
 
       formation_opts when is_list(formation_opts) ->
-        [ClusterFormation.child_spec(formation_opts) | children]
+        children ++ [ClusterFormation.child_spec(formation_opts)]
+    end
+  end
+
+  defp maybe_add_partition_monitor(children, manager, %{coordination_backend: :connected_beam} = cluster_config) do
+    children ++
+      [
+        PartitionMonitor.child_spec(
+          manager: manager,
+          partition_policy: cluster_config.partition_policy,
+          min_quorum_nodes: cluster_config.min_quorum_nodes,
+          coordination_backend: cluster_config.coordination_backend
+        )
+      ]
+  end
+
+  defp maybe_add_partition_monitor(children, _manager, _cluster_config), do: children
+
+  defp maybe_add_rebalancer(children, opts, manager, _cluster_config) do
+    if Keyword.get(opts, :rebalance, true) do
+      rebalancer_opts =
+        opts
+        |> extract_rebalancer_opts(manager)
+
+      children ++ [Rebalancer.child_spec(rebalancer_opts)]
+    else
+      children
     end
   end
 
@@ -211,6 +240,15 @@ defmodule JidoCluster.InstanceManager do
     ]
   end
 
+  defp extract_cluster_config(opts) do
+    %{
+      partition_policy: validate_partition_policy(Keyword.get(opts, :partition_policy, :freeze)),
+      min_quorum_nodes: validate_min_quorum_nodes(Keyword.get(opts, :min_quorum_nodes, 1)),
+      handoff_mode: validate_handoff_mode(Keyword.get(opts, :handoff_mode, :hibernate_thaw)),
+      coordination_backend: validate_coordination_backend(Keyword.get(opts, :coordination_backend, :connected_beam))
+    }
+  end
+
   defp lookup_any_node(manager, key) do
     Enum.find_value(Topology.connected_nodes(), :error, fn node ->
       case Remote.rpc(node, Jido.Agent.InstanceManager, :lookup, [manager, key], @default_rpc_timeout_ms) do
@@ -233,6 +271,49 @@ defmodule JidoCluster.InstanceManager do
       :error ->
         {:error, :not_found}
     end
+  end
+
+  defp ensure_cluster_available(manager) do
+    if cluster_available?(manager) do
+      :ok
+    else
+      {:error, :cluster_unavailable}
+    end
+  end
+
+  defp cluster_available?(manager) do
+    InstanceManagerConfig.cluster_available?(manager, Topology.connected_nodes())
+  end
+
+  defp validate_partition_policy(:freeze), do: :freeze
+
+  defp validate_partition_policy(other) do
+    raise ArgumentError,
+          "Invalid :partition_policy for JidoCluster.InstanceManager; expected :freeze, got: #{inspect(other)}"
+  end
+
+  defp validate_min_quorum_nodes(value) when is_integer(value) and value > 0, do: value
+
+  defp validate_min_quorum_nodes(other) do
+    raise ArgumentError,
+          "Invalid :min_quorum_nodes for JidoCluster.InstanceManager; expected positive integer, got: #{inspect(other)}"
+  end
+
+  defp validate_handoff_mode(:hibernate_thaw), do: :hibernate_thaw
+
+  defp validate_handoff_mode(other) do
+    raise ArgumentError,
+          "Invalid :handoff_mode for JidoCluster.InstanceManager; expected :hibernate_thaw, got: #{inspect(other)}"
+  end
+
+  defp validate_coordination_backend(:connected_beam), do: :connected_beam
+
+  defp validate_coordination_backend({:bedrock_lease, lease_opts}) when is_list(lease_opts),
+    do: {:bedrock_lease, lease_opts}
+
+  defp validate_coordination_backend(other) do
+    raise ArgumentError,
+          "Invalid :coordination_backend for JidoCluster.InstanceManager; expected :connected_beam or {:bedrock_lease, opts}, got: #{inspect(other)}"
   end
 
   defp node_for_lookup_result({:ok, pid}) when is_pid(pid), do: {:ok, node(pid)}

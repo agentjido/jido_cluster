@@ -201,7 +201,7 @@ defmodule JidoCluster.Storage.Bedrock do
 
   defp thread_entries_range(prefix, thread_id) do
     start_key = thread_entries_prefix(prefix, thread_id)
-    end_key = Bedrock.Key.key_after(start_key)
+    end_key = Bedrock.Key.strinc(start_key)
     {start_key, end_key}
   end
 

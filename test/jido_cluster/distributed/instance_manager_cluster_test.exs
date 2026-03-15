@@ -219,6 +219,155 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
     assert :ok = ExUnitCluster.call(cluster, leader, __MODULE__, :clear_migration_counter, [counter_id, :success])
   end
 
+  test "2-node split freezes both sides until reconnect and thaws state after heal", %{cluster: cluster} do
+    [n1, n2] = start_nodes(cluster, 2)
+    ensure_apps(cluster, [n1, n2])
+
+    manager = unique_manager(:freeze_two)
+
+    opts = [
+      name: manager,
+      agent: JidoCluster.Test.CounterAgent,
+      storage: {JidoCluster.Storage.Mnesia, table: unique_table(:freeze_two_mnesia), ram_copies: [n1, n2]},
+      rebalance: false,
+      min_quorum_nodes: 2,
+      partition_policy: :freeze
+    ]
+
+    start_managers(cluster, [n1, n2], opts)
+
+    signal = Jido.Signal.new!("inc", %{}, source: "/test")
+    key = "freeze-both-1"
+
+    assert {:ok, first} =
+             ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :call, [manager, key, signal, 5_000])
+
+    assert first.state.count == 1
+
+    disconnect_nodes(cluster, n1, n2)
+    await_topology(cluster, n1, [n1])
+    await_topology(cluster, n2, [n2])
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :get, [manager, key, []]) ==
+        {:error, :cluster_unavailable}
+    end)
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n2, JidoCluster.InstanceManager, :get, [manager, key, []]) ==
+        {:error, :cluster_unavailable}
+    end)
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n1, Jido.Agent.InstanceManager, :stats, [manager]) == %{count: 0, keys: []}
+    end)
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n2, Jido.Agent.InstanceManager, :stats, [manager]) == %{count: 0, keys: []}
+    end)
+
+    reconnect_nodes(cluster, n1, n2)
+    await_full_mesh(cluster, [n1, n2])
+
+    assert {:ok, second} =
+             ExUnitCluster.call(cluster, n2, JidoCluster.InstanceManager, :call, [manager, key, signal, 5_000])
+
+    assert second.state.count == 2
+    assert %{total: 1} = ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :stats, [manager])
+  end
+
+  test "3-node split freezes the minority and allows majority ownership recovery", %{cluster: cluster} do
+    [n1, n2, n3] = start_nodes(cluster, 3)
+    ensure_apps(cluster, [n1, n2, n3])
+
+    manager = unique_manager(:freeze_three)
+
+    opts = [
+      name: manager,
+      agent: JidoCluster.Test.CounterAgent,
+      storage: {JidoCluster.Storage.Mnesia, table: unique_table(:freeze_three_mnesia), ram_copies: [n1, n2, n3]},
+      rebalance: false,
+      min_quorum_nodes: 2,
+      partition_policy: :freeze
+    ]
+
+    start_managers(cluster, [n1, n2, n3], opts)
+
+    full_mesh_nodes = Enum.sort([n1, n2, n3])
+
+    key =
+      Enum.find_value(1..200, fn idx ->
+        candidate = "majority-minority-#{idx}"
+
+        if Topology.owner_node(manager, candidate, full_mesh_nodes) == n3 do
+          candidate
+        end
+      end)
+
+    assert is_binary(key)
+
+    signal = Jido.Signal.new!("inc", %{}, source: "/test")
+
+    assert {:ok, first} =
+             ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :call, [manager, key, signal, 5_000])
+
+    assert first.state.count == 1
+
+    eventually(fn ->
+      case ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :lookup, [manager, key]) do
+        {:ok, pid} -> node(pid) == n3
+        _ -> false
+      end
+    end)
+
+    isolate_minority_node(cluster, n3, [n1, n2])
+    reconnect_nodes(cluster, n1, n2)
+    await_topology(cluster, n3, [n3])
+    await_topology(cluster, n1, Enum.sort([n1, n2]))
+    await_topology(cluster, n2, Enum.sort([n1, n2]))
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n3, JidoCluster.InstanceManager, :call, [manager, key, signal, 5_000]) ==
+        {:error, :cluster_unavailable}
+    end)
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n3, Jido.Agent.InstanceManager, :stats, [manager]) == %{count: 0, keys: []}
+    end)
+
+    {:ok, second} =
+      eventually(
+        fn ->
+          case ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :call, [manager, key, signal, 5_000]) do
+            {:ok, _agent} = success -> success
+            _other -> false
+          end
+        end,
+        timeout: 5_000
+      )
+
+    # Mnesia proves the connected-BEAM ownership transfer here, but not
+    # cross-partition durability. Bedrock-backed acceptance tests cover the
+    # majority-side rehydration path against external shared storage.
+    assert second.state.count >= 1
+
+    majority_owner = Topology.owner_node(manager, key, Enum.sort([n1, n2]))
+    assert majority_owner in [n1, n2]
+
+    eventually(fn ->
+      case ExUnitCluster.call(cluster, majority_owner, JidoCluster.InstanceManager, :lookup, [manager, key]) do
+        {:ok, pid} -> node(pid) == majority_owner
+        _ -> false
+      end
+    end)
+
+    reconnect_nodes(cluster, n3, n1)
+    reconnect_nodes(cluster, n3, n2)
+    await_full_mesh(cluster, [n1, n2, n3])
+
+    assert %{total: 1} = ExUnitCluster.call(cluster, n2, JidoCluster.InstanceManager, :stats, [manager])
+  end
+
   defp ensure_apps(cluster, nodes) do
     Enum.each(nodes, fn node ->
       assert_app_started(ExUnitCluster.call(cluster, node, Application, :ensure_all_started, [:jido]))
@@ -257,10 +406,42 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
   defp await_full_mesh(cluster, nodes) do
     expected = Enum.sort(nodes)
 
-    eventually(fn ->
-      Enum.all?(nodes, fn node ->
+    eventually(
+      fn ->
+        Enum.all?(nodes, fn node ->
+          ExUnitCluster.call(cluster, node, Topology, :connected_nodes, []) == expected
+        end)
+      end,
+      timeout: 5_000
+    )
+  end
+
+  defp await_topology(cluster, node, expected_nodes) do
+    expected = Enum.sort(expected_nodes)
+
+    eventually(
+      fn ->
         ExUnitCluster.call(cluster, node, Topology, :connected_nodes, []) == expected
-      end)
+      end,
+      timeout: 5_000
+    )
+  end
+
+  defp disconnect_nodes(cluster, left, right) do
+    assert ExUnitCluster.call(cluster, left, Node, :disconnect, [right]) in [true, false]
+    assert ExUnitCluster.call(cluster, right, Node, :disconnect, [left]) in [true, false]
+    :ok
+  end
+
+  defp reconnect_nodes(cluster, left, right) do
+    assert ExUnitCluster.call(cluster, left, Node, :connect, [right]) in [true, false]
+    eventually(fn -> right in ExUnitCluster.call(cluster, left, Node, :list, []) end)
+    :ok
+  end
+
+  defp isolate_minority_node(cluster, minority, majority_nodes) do
+    Enum.each(majority_nodes, fn node ->
+      assert :ok = disconnect_nodes(cluster, minority, node)
     end)
   end
 
