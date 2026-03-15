@@ -1,4 +1,5 @@
 defmodule Jido.Cluster.ClusterFormation do
+  # covers: jido_cluster.bootstrap.optional_cluster_formation_backends
   @moduledoc """
   Optional cluster formation supervisor.
 

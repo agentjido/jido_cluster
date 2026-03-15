@@ -34,4 +34,15 @@ defmodule JidoCluster.TopologyTest do
   test "owner_node handles empty nodes by falling back to connected nodes" do
     assert is_atom(Topology.owner_node(:sessions, "user-123", []))
   end
+
+  test "replica_nodes returns stable primary and standby ordering" do
+    nodes = [:"a@127.0.0.1", :"b@127.0.0.1", :"c@127.0.0.1"]
+
+    replicas1 = Topology.replica_nodes(:sessions, "user-123", nodes, 2)
+    replicas2 = Topology.replica_nodes(:sessions, "user-123", nodes, 2)
+
+    assert replicas1 == replicas2
+    assert length(replicas1) == 2
+    assert hd(replicas1) == Topology.owner_node(:sessions, "user-123", nodes)
+  end
 end

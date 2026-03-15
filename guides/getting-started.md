@@ -1,5 +1,8 @@
 # Getting Started with Jido Cluster
 
+<!-- covers: jido_cluster.bootstrap.getting_started_guide -->
+<!-- covers: jido_cluster.storage.getting_started_storage_choices -->
+
 This guide shows the smallest setup for running keyed Jido agents across multiple Elixir nodes.
 
 ## 1. Add dependency

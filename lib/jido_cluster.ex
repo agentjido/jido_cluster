@@ -1,4 +1,5 @@
 defmodule JidoCluster do
+  # covers: jido_cluster.bootstrap.namespaces_expose_connected_nodes
   @moduledoc """
   Distributed lifecycle management for Jido agents.
 

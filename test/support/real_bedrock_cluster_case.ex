@@ -3,6 +3,7 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
   use ExUnit.CaseTemplate
 
   alias Bedrock.Cluster.Descriptor
+  alias Bedrock.Cluster.Link
   alias Bedrock.ObjectStorage
   alias Bedrock.ObjectStorage.LocalFilesystem
   alias Bedrock.Repo
@@ -151,7 +152,7 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
   end
 
   def stop_local_bedrock_cluster! do
-    case Process.whereis(TestCluster.otp_name(:supervisor)) do
+    case Process.whereis(outer_supervisor_name()) do
       pid when is_pid(pid) ->
         try do
           Supervisor.stop(pid, :normal, 30_000)
@@ -183,13 +184,28 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
     end)
   end
 
+  def repo_put(key, value) do
+    TestRepo.transact(fn -> TestRepo.put(key, value) end, retry_limit: 5)
+  end
+
+  def repo_get(key) do
+    TestRepo.transact(fn -> {:ok, TestRepo.get(key)} end, retry_limit: 5)
+  end
+
+  def debug_snapshot do
+    %{
+      link: current_link_state(),
+      coordinator: current_coordinator_state(),
+      director: current_director_state(),
+      layout_via_cluster: current_layout_via_cluster(),
+      layout_via_link: current_layout_via_link()
+    }
+  end
+
   def wait_for_layout!(timeout_ms \\ 20_000) do
     wait_until!(
       fn ->
-        case TestCluster.fetch_transaction_system_layout() do
-          {:ok, tsl} -> layout_ready?(tsl)
-          _ -> false
-        end
+        layout_ready_via_cluster?() and layout_ready_via_link?()
       end,
       timeout_ms
     )
@@ -224,8 +240,8 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
       path_to_descriptor: Path.join(tmp_dir, "bedrock.cluster"),
       object_storage: object_storage,
       trace: [:recovery, :storage],
-      coordinator: [path: Path.join([tmp_dir, "coordinator", node_slug()]), persistent: true],
-      worker: [path: Path.join([tmp_dir, "workers", node_slug()])],
+      coordinator: [path: Path.join(tmp_dir, "coordinator"), persistent: true],
+      worker: [path: Path.join(tmp_dir, "workers")],
       durability_mode: :relaxed,
       durability: [desired_replication_factor: 1, desired_logs: 1]
     ]
@@ -235,7 +251,7 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
     [
       capabilities: [],
       path_to_descriptor: Path.join(tmp_dir, "bedrock.cluster"),
-      worker: [path: Path.join([tmp_dir, "workers", node_slug()])]
+      worker: [path: Path.join(tmp_dir, "workers")]
     ]
   end
 
@@ -259,6 +275,22 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
   end
 
   defp layout_ready?(_), do: false
+
+  defp layout_ready_via_cluster? do
+    case TestCluster.fetch_transaction_system_layout() do
+      {:ok, tsl} -> layout_ready?(tsl)
+      _ -> false
+    end
+  end
+
+  defp layout_ready_via_link? do
+    with {:ok, link} <- TestCluster.fetch_link(),
+         {:ok, tsl} <- Link.fetch_transaction_system_layout(link) do
+      layout_ready?(tsl)
+    else
+      _ -> false
+    end
+  end
 
   defp shard_materializers_cover_layout?(shard_layout, shard_materializers) do
     shard_layout
@@ -289,18 +321,20 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
     end
   end
 
-  defp node_slug do
-    Node.self()
-    |> Atom.to_string()
-    |> String.replace(~r/[^a-zA-Z0-9_-]/, "_")
-  end
-
   defp assert_app_started(:ok), do: :ok
   defp assert_app_started({:ok, _apps}), do: :ok
   defp assert_app_started({:error, {:already_started, _pid}}), do: :ok
 
   defp call_remote_boot!(cluster, node, function, args, timeout_ms) do
-    case ExUnitCluster.call(cluster, node, __MODULE__, :invoke_boot_safe, [function, args], timeout_ms) do
+    result = ExUnitCluster.call(cluster, node, __MODULE__, :invoke_boot_safe, [function, args], timeout_ms)
+
+    debug_snapshot =
+      case ExUnitCluster.call(cluster, node, __MODULE__, :invoke_boot_safe, [:debug_snapshot, []], timeout_ms) do
+        {:ok, snapshot} -> snapshot
+        other -> {:debug_snapshot_unavailable, other}
+      end
+
+    case result do
       {:ok, :ok} ->
         :ok
 
@@ -309,6 +343,7 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
         failed to boot real Bedrock on #{inspect(node)}
         kind: #{inspect(kind)}
         reason: #{inspect(reason)}
+        debug_snapshot: #{inspect(debug_snapshot, pretty: true, limit: :infinity)}
         stacktrace: #{Exception.format_stacktrace(stacktrace)}
         """
 
@@ -316,6 +351,7 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
         raise """
         failed to boot real Bedrock on #{inspect(node)}
         unexpected boot result: #{inspect(other, pretty: true, limit: :infinity)}
+        debug_snapshot: #{inspect(debug_snapshot, pretty: true, limit: :infinity)}
         """
 
       {:error, %{kind: kind, reason: reason, stacktrace: stacktrace}} ->
@@ -323,6 +359,7 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
         failed to boot real Bedrock on #{inspect(node)}
         kind: #{inspect(kind)}
         reason: #{inspect(reason)}
+        debug_snapshot: #{inspect(debug_snapshot, pretty: true, limit: :infinity)}
         stacktrace: #{Exception.format_stacktrace(stacktrace)}
         """
 
@@ -330,12 +367,14 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
         raise """
         failed to boot real Bedrock on #{inspect(node)}
         details: #{inspect(details, pretty: true, limit: :infinity)}
+        debug_snapshot: #{inspect(debug_snapshot, pretty: true, limit: :infinity)}
         """
 
       other ->
         raise """
         failed to boot real Bedrock on #{inspect(node)}
         unexpected result: #{inspect(other, pretty: true, limit: :infinity)}
+        debug_snapshot: #{inspect(debug_snapshot, pretty: true, limit: :infinity)}
         """
     end
   end
@@ -370,12 +409,102 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
   defp normalize_app_start({:ok, _apps}), do: :ok
   defp normalize_app_start(other), do: other
 
+  defp outer_supervisor_name do
+    TestCluster.otp_name("outer_supervisor")
+  end
+
+  defp current_layout_via_cluster do
+    case TestCluster.fetch_transaction_system_layout() do
+      {:ok, tsl} -> %{ready?: layout_ready?(tsl), tsl: tsl}
+      other -> other
+    end
+  end
+
+  defp current_layout_via_link do
+    with {:ok, link} <- TestCluster.fetch_link(),
+         {:ok, tsl} <- Link.fetch_transaction_system_layout(link) do
+      %{ready?: layout_ready?(tsl), tsl: tsl}
+    else
+      other -> other
+    end
+  end
+
+  defp current_link_state do
+    case Process.whereis(TestCluster.otp_name(:link)) do
+      pid when is_pid(pid) ->
+        %{
+          pid: pid,
+          process_info: Process.info(pid, [:status, :current_function, :message_queue_len]),
+          state: safe_sys_get_state(pid)
+        }
+
+      _ ->
+        :link_unavailable
+    end
+  end
+
+  defp current_coordinator_state do
+    case Process.whereis(TestCluster.otp_name(:coordinator)) do
+      pid when is_pid(pid) ->
+        %{
+          pid: pid,
+          process_info: Process.info(pid, [:status, :current_function, :message_queue_len]),
+          state: safe_sys_get_state(pid)
+        }
+
+      _ ->
+        :coordinator_unavailable
+    end
+  end
+
+  defp current_director_state do
+    case current_director_pid() do
+      pid when is_pid(pid) ->
+        %{
+          pid: pid,
+          process_info: Process.info(pid, [:status, :current_function, :message_queue_len]),
+          state: safe_sys_get_state(pid)
+        }
+
+      _ ->
+        :director_unavailable
+    end
+  end
+
+  defp current_director_pid do
+    case safe_sys_get_state(Process.whereis(TestCluster.otp_name(:coordinator))) do
+      %{director: pid} when is_pid(pid) -> pid
+      _ -> nil
+    end
+  end
+
+  defp safe_sys_get_state(pid) when is_pid(pid) do
+    :sys.get_state(pid, 1_000)
+  catch
+    :exit, reason -> {:sys_state_unavailable, reason}
+  end
+
+  defp safe_sys_get_state(_), do: :unavailable
+
   defp start_named_supervisor do
-    Supervisor.start_link(
-      [TestCluster.child_spec([])],
-      strategy: :one_for_one,
-      name: TestCluster.otp_name(:supervisor)
-    )
+    previous = Process.flag(:trap_exit, true)
+
+    try do
+      case Supervisor.start_link(
+             [TestCluster.child_spec([])],
+             strategy: :one_for_one,
+             name: outer_supervisor_name()
+           ) do
+        {:ok, pid} = result ->
+          Process.unlink(pid)
+          result
+
+        other ->
+          other
+      end
+    after
+      Process.flag(:trap_exit, previous)
+    end
   end
 
   defp wait_for_layout(timeout_ms) do

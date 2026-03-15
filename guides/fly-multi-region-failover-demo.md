@@ -1,5 +1,8 @@
 # Fly Multi-Region Failover Demo
 
+<!-- covers: jido_cluster.acceptance.fly_failover_guide -->
+<!-- covers: jido_cluster.acceptance.multi_region_operational_shape -->
+
 This guide scaffolds a production-style demo for Jido Cluster runtime stability on Fly.io.
 
 Goal: run one logical `Jido.Cluster.InstanceManager` across multiple Fly regions, then hard-stop one region and demonstrate that keyed agent operations continue from surviving regions.
@@ -90,7 +93,7 @@ Recovery success criteria:
 - no global outage: `/demo/keys/:id/inc` continues to return success
 - key continuity: a key previously owned in the failed region can be resolved from a surviving region
 - cluster continuity: `/demo/cluster/stats` remains healthy and converges after node loss
-- observability: migration/failure telemetry is emitted during convergence
+- observability: migration and recovery telemetry is emitted during convergence
 
 Attach telemetry to:
 
@@ -98,6 +101,15 @@ Attach telemetry to:
 - `[:jido_cluster, :rebalancer, :migration, :success]`
 - `[:jido_cluster, :rebalancer, :migration, :failure]`
 - `[:jido_cluster, :rebalancer, :migration, :skipped]`
+- `[:jido_cluster, :instance_manager, :recovery, :start]`
+- `[:jido_cluster, :instance_manager, :recovery, :success]`
+- `[:jido_cluster, :instance_manager, :recovery, :failure]`
+
+In this drill, "recovered" means:
+
+- the surviving region resolves the key without manual intervention
+- the next acknowledged call observes the latest persisted state
+- recovery telemetry emits a matching `:start` and `:success` pair for the thaw on the surviving owner
 
 ## Features to Add Next
 

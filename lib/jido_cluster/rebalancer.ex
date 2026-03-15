@@ -16,6 +16,7 @@ defmodule JidoCluster.Rebalancer do
 
   alias JidoCluster.Internal.InstanceManagerConfig
   alias JidoCluster.Internal.Remote
+  alias JidoCluster.KeyRuntime
   alias JidoCluster.StorageCapabilities
   alias JidoCluster.Topology
 
@@ -135,21 +136,39 @@ defmodule JidoCluster.Rebalancer do
   end
 
   defp collect_running_keys_by_source(manager, nodes, timeout_ms) do
-    Enum.reduce(nodes, %{}, fn node, acc ->
-      case Remote.rpc(node, Jido.Agent.InstanceManager, :stats, [manager], timeout_ms) do
-        {:ok, %{keys: keys}} when is_list(keys) ->
-          Enum.reduce(keys, acc, fn key, key_acc ->
-            Map.update(key_acc, key, node, fn existing -> min(existing, node) end)
-          end)
+    if live_transfer?(manager) do
+      Enum.reduce(nodes, %{}, fn node, acc ->
+        case Remote.rpc(node, KeyRuntime, :primary_keys, [manager], timeout_ms) do
+          {:ok, keys} when is_list(keys) ->
+            Enum.reduce(keys, acc, fn key, key_acc ->
+              Map.put(key_acc, key, node)
+            end)
 
-        {:ok, _other} ->
-          acc
+          {:error, reason} ->
+            Logger.debug("Rebalancer primary key fetch failed on #{inspect(node)}: #{inspect(reason)}")
+            acc
 
-        {:error, reason} ->
-          Logger.debug("Rebalancer stats fetch failed on #{inspect(node)}: #{inspect(reason)}")
-          acc
-      end
-    end)
+          _ ->
+            acc
+        end
+      end)
+    else
+      Enum.reduce(nodes, %{}, fn node, acc ->
+        case Remote.rpc(node, Jido.Agent.InstanceManager, :stats, [manager], timeout_ms) do
+          {:ok, %{keys: keys}} when is_list(keys) ->
+            Enum.reduce(keys, acc, fn key, key_acc ->
+              Map.update(key_acc, key, node, fn existing -> min(existing, node) end)
+            end)
+
+          {:ok, _other} ->
+            acc
+
+          {:error, reason} ->
+            Logger.debug("Rebalancer stats fetch failed on #{inspect(node)}: #{inspect(reason)}")
+            acc
+        end
+      end)
+    end
   end
 
   defp compute_mismatches(key_sources, manager, nodes) do
@@ -169,24 +188,39 @@ defmodule JidoCluster.Rebalancer do
   end
 
   defp migrate_key(manager, key, source, target, storage_config, timeout_ms) do
-    if shared_backend?(storage_config) do
+    if live_transfer?(manager) do
       emit(:start, %{manager: manager, key: key, from: source, to: target})
 
-      case stop_then_get(manager, key, source, target, timeout_ms) do
-        :ok ->
+      case Remote.rpc(source, KeyRuntime, :handoff, [manager, key, target, timeout_ms], timeout_ms + 1_000) do
+        {:ok, :ok} ->
           emit(:success, %{manager: manager, key: key, from: source, to: target})
+
+        {:ok, {:error, reason}} ->
+          emit(:failure, %{manager: manager, key: key, from: source, to: target, reason: reason})
 
         {:error, reason} ->
           emit(:failure, %{manager: manager, key: key, from: source, to: target, reason: reason})
       end
     else
-      emit(:skipped, %{
-        manager: manager,
-        key: key,
-        from: source,
-        to: target,
-        reason: :non_shared_backend
-      })
+      if shared_backend?(storage_config) do
+        emit(:start, %{manager: manager, key: key, from: source, to: target})
+
+        case stop_then_get(manager, key, source, target, timeout_ms) do
+          :ok ->
+            emit(:success, %{manager: manager, key: key, from: source, to: target})
+
+          {:error, reason} ->
+            emit(:failure, %{manager: manager, key: key, from: source, to: target, reason: reason})
+        end
+      else
+        emit(:skipped, %{
+          manager: manager,
+          key: key,
+          from: source,
+          to: target,
+          reason: :non_shared_backend
+        })
+      end
     end
   end
 
@@ -222,6 +256,13 @@ defmodule JidoCluster.Rebalancer do
 
   defp cluster_available?(manager, nodes \\ Topology.connected_nodes()) do
     InstanceManagerConfig.cluster_available?(manager, nodes)
+  end
+
+  defp live_transfer?(manager) do
+    case InstanceManagerConfig.fetch_cluster(manager) do
+      {:ok, %{handoff_mode: :live_transfer}} -> true
+      _ -> false
+    end
   end
 
   defp emit(stage, metadata) when stage in [:start, :success, :failure, :skipped] do

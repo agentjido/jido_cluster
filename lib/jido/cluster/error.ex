@@ -1,4 +1,5 @@
 defmodule Jido.Cluster.Error do
+  # covers: jido_cluster.errors.public_error_facade
   @moduledoc """
   Error helper facade for `jido_cluster`.
 

@@ -7,6 +7,7 @@ shared persistence adapters for multi-node recovery.
 
 ## Alpha Status
 
+<!-- covers: jido_cluster.package.alpha_status -->
 `jido_cluster` is alpha-quality and is being developed in the open while the
 distributed ownership and failover model is still changing.
 
@@ -15,10 +16,12 @@ distributed ownership and failover model is still changing.
 - Bedrock-backed clustered scenarios are still under active integration work.
 - Expect API changes, incomplete behaviors, and breaking changes.
 
+<!-- covers: jido_cluster.package.public_namespace -->
 Primary public namespace: `Jido.Cluster.*` (legacy `JidoCluster.*` remains available).
 
 ## Features
 
+<!-- covers: jido_cluster.package.connected_beam_runtime -->
 - Global singleton semantics per `{cluster, jido_instance, id}` key.
 - Deterministic owner-node placement via rendezvous hashing.
 - Cross-node `get/lookup/call/cast/stop` API by key.
@@ -81,6 +84,16 @@ owner = Jido.Cluster.InstanceManager.owner_node(MyApp.ClusterManager, "counter-1
 stats = Jido.Cluster.InstanceManager.stats(MyApp.ClusterManager)
 ```
 
+## Ownership Contract
+
+- Route clustered work through `Jido.Cluster.InstanceManager` by `{manager, key}`.
+- One logical key has one active primary and at most one standby.
+- Returned pids from `get/lookup` are short-lived observations of the current
+  primary, not a durable cluster identity.
+- `epoch` tracks ownership changes such as promotion and planned handoff.
+- `seq` tracks the last acknowledged replicated update for the key.
+- `owner_node/2` and `stats/1` reflect the current visible cluster view.
+
 ## Storage Adapters
 
 - `Jido.Cluster.Storage.ETS`
@@ -120,9 +133,17 @@ mix test
 
 ```bash
 mix setup
+mix spec.init
+mix spec.verify --debug
+mix spec.check --no-run-commands
 mix quality
 mix test
 ```
+
+`specled.dev` is installed as a dev/test tool via `spec_led_ex`. The `.spec/`
+workspace is the current-truth contract layer for the evolving `Jido.Cluster.*`
+runtime and should be updated alongside meaningful API, topology, or scenario
+changes.
 
 ## License
 

@@ -1,4 +1,5 @@
 defmodule JidoCluster.Application do
+  # covers: jido_cluster.bootstrap.application_starts_manager_supervisor
   @moduledoc false
 
   use Application
