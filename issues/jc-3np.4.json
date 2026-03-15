@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-03-15T15:01:09Z",
+  "description": "Deliverables:\n- Promote the current Bedrock acceptance path in jido_cluster into the canonical durable clustered acceptance layer.\n- Cover two-node Bedrock-backed handoff, owner loss, restart, and stale-owner rejection.\n- Keep heavy tests tagged and excluded by default.\n\nAcceptance:\n- Real Bedrock clustered acceptance tests are green locally against the fixed Bedrock stack.\n- The behavior is represented in .spec without forcing default mix test to boot real Bedrock.",
+  "id": "jc-3np.4",
+  "labels": [],
+  "parent": "jc-3np",
+  "priority": 1,
+  "status": "open",
+  "title": "Add real Bedrock distributed acceptance suite",
+  "type": "task",
+  "updated_at": "2026-03-15T15:01:09Z"
+}
