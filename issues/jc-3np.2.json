@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jc-3np.1"
+  ],
   "blocks": [],
   "created": "2026-03-15T15:01:09Z",
   "description": "Deliverables:\n- Freeze the current per-key ownership model as the V1 contract.\n- Ensure runtime role, epoch, sequence, and ownership summary semantics are documented and reflected in .spec.\n- Clarify that raw pids are not the cross-node stability boundary.\n\nAcceptance:\n- Jido.Cluster.* public contract is stable enough for downstream work.\n- Specs describe it explicitly.\n- No further structural renames are required before Bedrock durability work.",
