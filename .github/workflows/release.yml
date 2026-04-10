@@ -27,6 +27,8 @@ jobs:
     name: Release
     uses: agentjido/github-actions/.github/workflows/elixir-release.yml@main
     with:
+      otp_version: "28"
+      elixir_version: "1.19"
       dry_run: ${{ inputs.dry_run }}
       hex_dry_run: ${{ inputs.hex_dry_run }}
       skip_tests: ${{ inputs.skip_tests }}
