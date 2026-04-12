@@ -67,8 +67,8 @@ defmodule JidoCluster.MixProject do
   defp deps do
     [
       # Runtime
-      {:jido, path: "../jido"},
-      {:bedrock, path: "../bedrock", optional: true},
+      jido_dep(),
+      bedrock_dep(),
       {:libcluster, "~> 3.5", optional: true},
       {:dns_cluster, "~> 0.2", optional: true},
       {:ecto_sql, "~> 3.13", optional: true},
@@ -108,6 +108,24 @@ defmodule JidoCluster.MixProject do
         "doctor --raise"
       ]
     ]
+  end
+
+  defp jido_dep do
+    local_dep_or_hex(:jido, "../jido", "~> 2.2")
+  end
+
+  defp bedrock_dep do
+    local_dep_or_hex(:bedrock, "../bedrock", "~> 0.5", optional: true)
+  end
+
+  # Keep the repo standalone by default, but allow explicit sibling checkouts when needed.
+  defp local_dep_or_hex(app, relative_path, requirement, opts \\ []) do
+    if System.get_env("JIDO_CLUSTER_USE_LOCAL_PATH_DEPS") in ["1", "true"] and
+         File.dir?(Path.expand(relative_path, __DIR__)) do
+      {app, Keyword.put(opts, :path, relative_path)}
+    else
+      {app, requirement, opts}
+    end
   end
 
   defp package do

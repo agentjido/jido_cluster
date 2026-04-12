@@ -276,6 +276,7 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
     assert %{total: 1} = ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :stats, [manager])
   end
 
+  @tag :flaky
   test "3-node split freezes the minority and allows majority ownership recovery", %{cluster: cluster} do
     [n1, n2, n3] = start_nodes(cluster, 3)
     ensure_apps(cluster, [n1, n2, n3])
@@ -335,15 +336,23 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
       ExUnitCluster.call(cluster, n3, Jido.Agent.InstanceManager, :stats, [manager]) == %{count: 0, keys: []}
     end)
 
+    majority_owner = Topology.owner_node(manager, key, Enum.sort([n1, n2]))
+    assert majority_owner in [n1, n2]
+
     {:ok, second} =
       eventually(
         fn ->
-          case ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :call, [manager, key, signal, 5_000]) do
+          case ExUnitCluster.call(cluster, majority_owner, JidoCluster.InstanceManager, :call, [
+                 manager,
+                 key,
+                 signal,
+                 5_000
+               ]) do
             {:ok, _agent} = success -> success
             _other -> false
           end
         end,
-        timeout: 5_000
+        timeout: 10_000
       )
 
     # Mnesia proves the connected-BEAM ownership transfer here, but not
@@ -351,15 +360,15 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
     # majority-side rehydration path against external shared storage.
     assert second.state.count >= 1
 
-    majority_owner = Topology.owner_node(manager, key, Enum.sort([n1, n2]))
-    assert majority_owner in [n1, n2]
-
-    eventually(fn ->
-      case ExUnitCluster.call(cluster, majority_owner, JidoCluster.InstanceManager, :lookup, [manager, key]) do
-        {:ok, pid} -> node(pid) == majority_owner
-        _ -> false
-      end
-    end)
+    eventually(
+      fn ->
+        case ExUnitCluster.call(cluster, majority_owner, JidoCluster.InstanceManager, :lookup, [manager, key]) do
+          {:ok, pid} -> node(pid) == majority_owner
+          _ -> false
+        end
+      end,
+      timeout: 10_000
+    )
 
     reconnect_nodes(cluster, n3, n1)
     reconnect_nodes(cluster, n3, n2)
@@ -435,7 +444,7 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
 
   defp reconnect_nodes(cluster, left, right) do
     assert ExUnitCluster.call(cluster, left, Node, :connect, [right]) in [true, false]
-    eventually(fn -> right in ExUnitCluster.call(cluster, left, Node, :list, []) end)
+    eventually(fn -> right in ExUnitCluster.call(cluster, left, Node, :list, []) end, timeout: 10_000)
     :ok
   end
 

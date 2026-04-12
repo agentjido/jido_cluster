@@ -13,15 +13,7 @@
       }
     ]
   },
-  "findings": [
-    {
-      "code": "requirement_without_verification",
-      "entity_id": "jido_cluster.instance_manager",
-      "file": ".spec/specs/jido_cluster.instance_manager.spec.md",
-      "level": "warning",
-      "message": "Requirement is not referenced by any verification item: jido_cluster.instance_manager.returned_pids_are_observational"
-    }
-  ],
+  "findings": [],
   "index": {
     "exceptions": [],
     "requirements": [
@@ -1400,6 +1392,7 @@
       {
         "covers": [
           "jido_cluster.instance_manager.manager_routed_singleton",
+          "jido_cluster.instance_manager.returned_pids_are_observational",
           "jido_cluster.instance_manager.live_transfer_bootstraps_replica_set",
           "jido_cluster.instance_manager.owner_queries_reflect_cluster_view",
           "jido_cluster.instance_manager.single_node_lifecycle",
@@ -1591,7 +1584,7 @@
     "decision_parse_errors": 0,
     "decisions": 1,
     "exceptions": 0,
-    "findings": 1,
+    "findings": 0,
     "requirements": 64,
     "scenarios": 20,
     "subjects": 15,
@@ -2172,6 +2165,17 @@
         "verification_index": 1
       },
       {
+        "cover_id": "jido_cluster.instance_manager.returned_pids_are_observational",
+        "file": ".spec/specs/jido_cluster.instance_manager.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.instance_manager",
+        "target": "mix test test/jido_cluster/distributed/ephemeral_runtime_scenarios_test.exs",
+        "verification_index": 1
+      },
+      {
         "cover_id": "jido_cluster.instance_manager.single_node_lifecycle",
         "file": ".spec/specs/jido_cluster.instance_manager.spec.md",
         "kind": "command",
@@ -2604,7 +2608,7 @@
     "cli_minimum_strength": null,
     "default_minimum_strength": "claimed",
     "strength_summary": {
-      "claimed": 64,
+      "claimed": 65,
       "executed": 0,
       "linked": 27
     },

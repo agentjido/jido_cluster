@@ -108,6 +108,7 @@ surface:
   execute: true
   covers:
     - jido_cluster.instance_manager.manager_routed_singleton
+    - jido_cluster.instance_manager.returned_pids_are_observational
     - jido_cluster.instance_manager.live_transfer_bootstraps_replica_set
     - jido_cluster.instance_manager.owner_queries_reflect_cluster_view
     - jido_cluster.instance_manager.single_node_lifecycle

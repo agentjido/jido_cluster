@@ -76,6 +76,17 @@ defmodule JidoCluster.KeyRuntime do
     end
   end
 
+  @spec agent_snapshot(term(), term()) :: {:ok, map()} | {:error, term()}
+  def agent_snapshot(manager, key) do
+    case GenServer.whereis(via(manager, key)) do
+      nil ->
+        {:error, :not_found}
+
+      pid ->
+        GenServer.call(pid, :agent_snapshot)
+    end
+  end
+
   @spec local_summary(term(), term()) :: RuntimeSummary.t() | nil
   def local_summary(manager, key) do
     case :persistent_term.get(summary_cache_key(manager, key), :undefined) do
@@ -238,7 +249,7 @@ defmodule JidoCluster.KeyRuntime do
           role: Keyword.get(opts, :role, :primary),
           epoch: Keyword.get(opts, :epoch, 0),
           seq: Keyword.get(opts, :seq, 0),
-          promotion_timeout_ms: cluster_config.replication.promotion_timeout_ms || 5_000,
+          promotion_timeout_ms: cluster_config.replication.promotion_timeout_ms,
           promotion_timer: nil,
           agent_pid: nil,
           initial_state: Keyword.get(opts, :initial_state, %{})
@@ -267,6 +278,14 @@ defmodule JidoCluster.KeyRuntime do
 
   def handle_call(:primary_pid, _from, state) do
     {:reply, :error, state}
+  end
+
+  def handle_call(:agent_snapshot, _from, %{agent_pid: pid} = state) when is_pid(pid) do
+    {:reply, capture_agent_snapshot(pid), state}
+  end
+
+  def handle_call(:agent_snapshot, _from, state) do
+    {:reply, {:error, :agent_not_started}, state}
   end
 
   def handle_call({:ensure, opts}, _from, state) do
@@ -406,7 +425,7 @@ defmodule JidoCluster.KeyRuntime do
       key: key,
       epoch: epoch,
       seq: seq,
-      agent_module: nil,
+      agent_module: Map.get(agent_snapshot, :agent_module),
       cluster_role: cluster_role,
       primary: primary,
       standby: standby,
@@ -554,8 +573,7 @@ defmodule JidoCluster.KeyRuntime do
     loser_node = loser.node
     standby_node = if loser_node == winner_node, do: nil, else: loser_node
 
-    with {:ok, {:ok, winner_pid}} <- Remote.rpc(winner_node, __MODULE__, :primary_pid, [manager, key], timeout),
-         {:ok, {:ok, agent_snapshot}} <- Remote.rpc(winner_node, AgentServer, :cluster_snapshot, [winner_pid], timeout),
+    with {:ok, {:ok, agent_snapshot}} <- Remote.rpc(winner_node, __MODULE__, :agent_snapshot, [manager, key], timeout),
          winner_snapshot <-
            build_runtime_snapshot(
              key,
@@ -648,13 +666,8 @@ defmodule JidoCluster.KeyRuntime do
       end
     else
       {:error, _} = error ->
-        {reason, new_state} =
-          case error do
-            {:error, reason} -> {reason, state}
-            other -> {other, state}
-          end
-
-        {:error, reason, new_state}
+        {:error, reason} = error
+        {:error, reason, state}
     end
   end
 
@@ -668,7 +681,7 @@ defmodule JidoCluster.KeyRuntime do
     if standby == Node.self() do
       {:ok, %{state | seq: next_seq || state.seq}}
     else
-      with {:ok, agent_snapshot} <- AgentServer.cluster_snapshot(state.agent_pid),
+      with {:ok, agent_snapshot} <- capture_agent_snapshot(state.agent_pid),
            snapshot <-
              build_runtime_snapshot(
                state.key,
@@ -710,7 +723,7 @@ defmodule JidoCluster.KeyRuntime do
     next_epoch = state.epoch + 1
     new_standby = Node.self()
 
-    with {:ok, agent_snapshot} <- AgentServer.cluster_snapshot(state.agent_pid),
+    with {:ok, agent_snapshot} <- capture_agent_snapshot(state.agent_pid),
          target_snapshot <-
            build_runtime_snapshot(
              state.key,
@@ -799,13 +812,7 @@ defmodule JidoCluster.KeyRuntime do
   end
 
   defp sync_from_remote(state, remote, peer) do
-    case Remote.rpc(
-           peer,
-           AgentServer,
-           :cluster_snapshot,
-           [remote_primary_pid(state.manager, state.key, peer)],
-           @default_timeout_ms
-         ) do
+    case Remote.rpc(peer, __MODULE__, :agent_snapshot, [state.manager, state.key], @default_timeout_ms) do
       {:ok, {:ok, agent_snapshot}} ->
         snapshot =
           build_runtime_snapshot(
@@ -824,13 +831,6 @@ defmodule JidoCluster.KeyRuntime do
       _ ->
         %{state | epoch: remote.epoch, seq: remote.seq, primary: remote.primary, standby: remote.standby}
         |> publish_summary()
-    end
-  end
-
-  defp remote_primary_pid(manager, key, peer) do
-    case Remote.rpc(peer, __MODULE__, :primary_pid, [manager, key], @default_timeout_ms) do
-      {:ok, {:ok, pid}} -> pid
-      _ -> nil
     end
   end
 
@@ -864,17 +864,16 @@ defmodule JidoCluster.KeyRuntime do
   end
 
   defp apply_snapshot(state, %RuntimeSnapshot{} = snapshot) do
-    state = ensure_agent_started(state)
-    :ok = AgentServer.import_cluster_snapshot(state.agent_pid, snapshot.agent_snapshot)
+    {agent, agent_module} = snapshot_agent_payload!(snapshot, state.agent_module)
 
-    :ok =
-      if(snapshot.cluster_role == :primary,
-        do: AgentServer.promote(state.agent_pid),
-        else: AgentServer.demote(state.agent_pid)
-      )
+    state =
+      state
+      |> stop_local_agent()
+      |> start_snapshot_agent(agent, agent_module, snapshot.cluster_role)
 
     state
     |> clear_promotion_timer()
+    |> Map.put(:agent_module, agent_module)
     |> Map.put(:role, snapshot.cluster_role)
     |> Map.put(:epoch, snapshot.epoch)
     |> Map.put(:seq, snapshot.seq)
@@ -888,19 +887,74 @@ defmodule JidoCluster.KeyRuntime do
   end
 
   defp ensure_agent_started(state) do
-    agent = state.agent_module
+    state
+    |> Map.put(:agent_pid, nil)
+    |> start_fresh_agent(state.role)
+  end
 
+  defp set_local_role(%{role: role} = state, role), do: publish_summary(state)
+
+  defp set_local_role(%{agent_pid: pid} = state, role) when is_pid(pid) do
+    case capture_agent_snapshot(pid) do
+      {:ok, %{agent: agent, agent_module: agent_module}} ->
+        state
+        |> Map.put(:role, role)
+        |> stop_local_agent()
+        |> start_snapshot_agent(agent, agent_module, role)
+        |> publish_summary()
+
+      {:error, _reason} ->
+        %{state | role: role} |> publish_summary()
+    end
+  end
+
+  defp set_local_role(state, role) do
+    %{state | role: role} |> publish_summary()
+  end
+
+  defp capture_agent_snapshot(pid) when is_pid(pid) do
+    with {:ok, server_state} <- AgentServer.state(pid),
+         {:ok, agent} <- Map.fetch(server_state, :agent),
+         {:ok, agent_module} <- Map.fetch(server_state, :agent_module),
+         true <- is_atom(agent_module) do
+      {:ok, %{agent: agent, agent_module: agent_module}}
+    else
+      false -> {:error, :invalid_agent_module}
+      :error -> {:error, :invalid_agent_snapshot}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp start_fresh_agent(state, role) do
     opts =
       [
-        agent: agent,
+        agent: state.agent_module,
         agent_module: state.agent_module,
         jido: state.jido,
         register_global: false,
-        cluster_role: state.role,
-        skip_schedules: state.role == :standby,
+        skip_schedules: role == :standby,
         initial_state: state.initial_state
       ] ++ state.agent_opts
 
+    start_agent_server(state, opts)
+  end
+
+  defp start_snapshot_agent(state, agent, agent_module, role) do
+    opts =
+      [
+        agent: agent,
+        agent_module: agent_module,
+        jido: state.jido,
+        register_global: false,
+        skip_schedules: role == :standby
+      ] ++ state.agent_opts
+
+    state
+    |> Map.put(:agent_module, agent_module)
+    |> start_agent_server(opts)
+  end
+
+  defp start_agent_server(state, opts) do
     child_spec = Supervisor.child_spec({AgentServer, opts}, restart: :temporary)
     supervisor = Jido.agent_supervisor_name(state.jido)
 
@@ -915,9 +969,30 @@ defmodule JidoCluster.KeyRuntime do
     end
   end
 
-  defp set_local_role(%{agent_pid: pid} = state, role) do
-    :ok = if(role == :primary, do: AgentServer.promote(pid), else: AgentServer.demote(pid))
-    %{state | role: role} |> publish_summary()
+  defp snapshot_agent_payload!(%RuntimeSnapshot{} = snapshot, default_agent_module) do
+    case snapshot_agent_payload(snapshot, default_agent_module) do
+      {:ok, agent, agent_module} ->
+        {agent, agent_module}
+
+      {:error, reason} ->
+        raise Jido.Cluster.Error.validation_error("Invalid runtime snapshot", %{details: reason})
+    end
+  end
+
+  defp snapshot_agent_payload(
+         %RuntimeSnapshot{agent_snapshot: agent_snapshot, agent_module: snapshot_module},
+         default_agent_module
+       )
+       when is_map(agent_snapshot) do
+    with {:ok, agent} <- Map.fetch(agent_snapshot, :agent),
+         agent_module when is_atom(agent_module) <-
+           snapshot_module || Map.get(agent_snapshot, :agent_module) || Map.get(agent, :agent_module) ||
+             default_agent_module do
+      {:ok, agent, agent_module}
+    else
+      :error -> {:error, :missing_agent}
+      other -> {:error, {:invalid_agent_module, other}}
+    end
   end
 
   defp stop_local_agent(%{agent_pid: pid} = state) when is_pid(pid) do
