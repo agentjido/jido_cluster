@@ -335,10 +335,18 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
       ExUnitCluster.call(cluster, n3, Jido.Agent.InstanceManager, :stats, [manager]) == %{count: 0, keys: []}
     end)
 
+    majority_owner = Topology.owner_node(manager, key, Enum.sort([n1, n2]))
+    assert majority_owner in [n1, n2]
+
     {:ok, second} =
       eventually(
         fn ->
-          case ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :call, [manager, key, signal, 5_000]) do
+          case ExUnitCluster.call(cluster, majority_owner, JidoCluster.InstanceManager, :call, [
+                 manager,
+                 key,
+                 signal,
+                 5_000
+               ]) do
             {:ok, _agent} = success -> success
             _other -> false
           end
@@ -350,9 +358,6 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
     # cross-partition durability. Bedrock-backed acceptance tests cover the
     # majority-side rehydration path against external shared storage.
     assert second.state.count >= 1
-
-    majority_owner = Topology.owner_node(manager, key, Enum.sort([n1, n2]))
-    assert majority_owner in [n1, n2]
 
     eventually(
       fn ->
@@ -438,7 +443,7 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
 
   defp reconnect_nodes(cluster, left, right) do
     assert ExUnitCluster.call(cluster, left, Node, :connect, [right]) in [true, false]
-    eventually(fn -> right in ExUnitCluster.call(cluster, left, Node, :list, []) end)
+    eventually(fn -> right in ExUnitCluster.call(cluster, left, Node, :list, []) end, timeout: 10_000)
     :ok
   end
 
