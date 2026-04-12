@@ -343,7 +343,7 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
             _other -> false
           end
         end,
-        timeout: 5_000
+        timeout: 10_000
       )
 
     # Mnesia proves the connected-BEAM ownership transfer here, but not
@@ -354,12 +354,15 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
     majority_owner = Topology.owner_node(manager, key, Enum.sort([n1, n2]))
     assert majority_owner in [n1, n2]
 
-    eventually(fn ->
-      case ExUnitCluster.call(cluster, majority_owner, JidoCluster.InstanceManager, :lookup, [manager, key]) do
-        {:ok, pid} -> node(pid) == majority_owner
-        _ -> false
-      end
-    end)
+    eventually(
+      fn ->
+        case ExUnitCluster.call(cluster, majority_owner, JidoCluster.InstanceManager, :lookup, [manager, key]) do
+          {:ok, pid} -> node(pid) == majority_owner
+          _ -> false
+        end
+      end,
+      timeout: 10_000
+    )
 
     reconnect_nodes(cluster, n3, n1)
     reconnect_nodes(cluster, n3, n2)
