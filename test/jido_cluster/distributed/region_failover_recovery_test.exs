@@ -26,6 +26,7 @@ defmodule JidoCluster.Distributed.RegionFailoverRecoveryTest do
 
     key = pick_key_owned_by(manager, [n1, n2], n2)
     signal = Jido.Signal.new!("inc", %{}, source: "/test/failover")
+
     assert {:ok, _agent} =
              ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :call, [manager, key, signal, 5_000])
 

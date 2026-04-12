@@ -30,8 +30,7 @@ defmodule Jido.Cluster.Lease do
               status:
                 Zoi.atom(description: "Lease lifecycle status")
                 |> Zoi.default(:active),
-              fence_token:
-                FenceToken.schema()
+              fence_token: FenceToken.schema()
             },
             coerce: true
           )

@@ -100,7 +100,6 @@ defmodule JidoCluster.InstanceManager do
             {:ok, pid}
           else
             {:error, reason} -> {:error, reason}
-            :error -> {:error, :not_found}
             {:ok, other} -> {:error, {:unexpected_get_result, other}}
           end
 
@@ -443,13 +442,9 @@ defmodule JidoCluster.InstanceManager do
       case Jido.Agent.InstanceManager.stop(manager, key) do
         :ok -> :ok
         {:error, :not_found} -> :ok
-        {:error, _reason} = error -> error
       end
 
     case {stop_result, lease_backend(manager)} do
-      {{:error, _reason} = error, _backend} ->
-        error
-
       {:ok, {:ok, %LeaseBackend{} = backend}} ->
         case LeaseStore.release(manager, key, Node.self(), backend) do
           :ok -> :ok
@@ -502,7 +497,6 @@ defmodule JidoCluster.InstanceManager do
     case Jido.Agent.InstanceManager.stop(manager, key) do
       :ok -> :ok
       {:error, :not_found} -> :ok
-      {:error, _reason} -> :ok
     end
   end
 

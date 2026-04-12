@@ -125,6 +125,7 @@ defmodule JidoCluster.Distributed.BedrockAcceptanceTest do
     manager = unique_manager(:bedrock_failover)
     key = handoff_key(manager, Enum.sort([n1, n2]), n2)
     signal = Jido.Signal.new!("inc", %{}, source: "/test")
+
     opts = [
       name: manager,
       agent: JidoCluster.Test.CounterAgent,
@@ -256,7 +257,10 @@ defmodule JidoCluster.Distributed.BedrockAcceptanceTest do
              ExUnitCluster.call(cluster, n1_restarted, __MODULE__, :attach_recovery_counter, [recovery_counter, :start])
 
     assert :ok =
-             ExUnitCluster.call(cluster, n1_restarted, __MODULE__, :attach_recovery_counter, [recovery_counter, :success])
+             ExUnitCluster.call(cluster, n1_restarted, __MODULE__, :attach_recovery_counter, [
+               recovery_counter,
+               :success
+             ])
 
     assert {:ok, pid} =
              ExUnitCluster.call(cluster, n1_restarted, JidoCluster.InstanceManager, :get, [manager, key, []])
@@ -266,7 +270,8 @@ defmodule JidoCluster.Distributed.BedrockAcceptanceTest do
     eventually(
       fn ->
         ExUnitCluster.call(cluster, n1_restarted, __MODULE__, :read_recovery_counter, [recovery_counter, :start]) >= 1 and
-          ExUnitCluster.call(cluster, n1_restarted, __MODULE__, :read_recovery_counter, [recovery_counter, :success]) >= 1
+          ExUnitCluster.call(cluster, n1_restarted, __MODULE__, :read_recovery_counter, [recovery_counter, :success]) >=
+            1
       end,
       timeout: 10_000
     )

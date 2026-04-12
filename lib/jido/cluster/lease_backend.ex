@@ -11,7 +11,8 @@ defmodule Jido.Cluster.LeaseBackend do
             %{
               repo: Zoi.atom(description: "Bedrock repo module"),
               prefix: Zoi.string(description: "Lease key prefix") |> Zoi.default("jido_cluster/leases/"),
-              ttl_ms: Zoi.integer(description: "Lease time-to-live in milliseconds") |> Zoi.min(1) |> Zoi.default(15_000),
+              ttl_ms:
+                Zoi.integer(description: "Lease time-to-live in milliseconds") |> Zoi.min(1) |> Zoi.default(15_000),
               renew_interval_ms:
                 Zoi.integer(description: "Renewal cadence in milliseconds")
                 |> Zoi.min(1)
