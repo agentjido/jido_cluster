@@ -276,6 +276,7 @@ defmodule JidoCluster.Distributed.InstanceManagerClusterTest do
     assert %{total: 1} = ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :stats, [manager])
   end
 
+  @tag :flaky
   test "3-node split freezes the minority and allows majority ownership recovery", %{cluster: cluster} do
     [n1, n2, n3] = start_nodes(cluster, 3)
     ensure_apps(cluster, [n1, n2, n3])
