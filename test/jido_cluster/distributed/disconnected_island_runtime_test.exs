@@ -7,7 +7,7 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
   @moduletag :real_bedrock
   @moduletag timeout: 60_000
 
-  test "bedrock lease coordination acquires, renews, fails over on expiry, and rejects stale holders", %{
+  test "bedrock lease coordination renews idle ownership, releases, expires, and rejects stale holders", %{
     cluster: cluster,
     tmp_dir: tmp_dir,
     bedrock_prefix: bedrock_prefix
@@ -45,7 +45,7 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
     start_managers(cluster, [island_a, island_b], opts)
 
     assert {:ok, first} =
-             ExUnitCluster.call(cluster, island_a, JidoCluster.InstanceManager, :call, [
+             cluster_call(cluster, island_a, JidoCluster.InstanceManager, :call, [
                manager,
                key,
                signal,
@@ -53,9 +53,9 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
              ])
 
     assert first.state.count == 1
-    assert ExUnitCluster.call(cluster, island_a, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_a
+    assert cluster_call(cluster, island_a, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_a
 
-    assert ExUnitCluster.call(cluster, island_b, JidoCluster.InstanceManager, :call, [
+    assert cluster_call(cluster, island_b, JidoCluster.InstanceManager, :call, [
              manager,
              key,
              signal,
@@ -65,7 +65,7 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
     Process.sleep(100)
 
     assert {:ok, renewed} =
-             ExUnitCluster.call(cluster, island_a, JidoCluster.InstanceManager, :call, [
+             cluster_call(cluster, island_a, JidoCluster.InstanceManager, :call, [
                manager,
                key,
                signal,
@@ -73,12 +73,23 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
              ])
 
     assert renewed.state.count == 2
-    assert ExUnitCluster.call(cluster, island_b, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_a
+    assert cluster_call(cluster, island_b, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_a
 
     Process.sleep(350)
 
+    assert cluster_call(cluster, island_b, JidoCluster.InstanceManager, :call, [
+             manager,
+             key,
+             signal,
+             5_000
+           ]) == {:error, :lease_unavailable}
+
+    assert cluster_call(cluster, island_b, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_a
+
+    assert :ok = cluster_call(cluster, island_a, JidoCluster.InstanceManager, :stop, [manager, key])
+
     assert {:ok, failed_over} =
-             ExUnitCluster.call(cluster, island_b, JidoCluster.InstanceManager, :call, [
+             cluster_call(cluster, island_b, JidoCluster.InstanceManager, :call, [
                manager,
                key,
                signal,
@@ -86,9 +97,9 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
              ])
 
     assert failed_over.state.count == 3
-    assert ExUnitCluster.call(cluster, island_b, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_b
+    assert cluster_call(cluster, island_b, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_b
 
-    assert ExUnitCluster.call(cluster, island_a, JidoCluster.InstanceManager, :call, [
+    assert cluster_call(cluster, island_a, JidoCluster.InstanceManager, :call, [
              manager,
              key,
              signal,
@@ -99,10 +110,11 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
       ExUnitCluster.call(cluster, island_a, Jido.Agent.InstanceManager, :lookup, [manager, key]) == :error
     end)
 
-    assert :ok = ExUnitCluster.call(cluster, island_b, JidoCluster.InstanceManager, :stop, [manager, key])
+    assert :ok = ExUnitCluster.stop_node(cluster, island_b)
+    Process.sleep(350)
 
     assert {:ok, reacquired} =
-             ExUnitCluster.call(cluster, island_a, JidoCluster.InstanceManager, :call, [
+             cluster_call(cluster, island_a, JidoCluster.InstanceManager, :call, [
                manager,
                key,
                signal,
@@ -110,7 +122,7 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
              ])
 
     assert reacquired.state.count == 4
-    assert ExUnitCluster.call(cluster, island_a, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_a
+    assert cluster_call(cluster, island_a, JidoCluster.InstanceManager, :owner_node, [manager, key]) == island_a
   end
 
   defp ensure_apps(cluster, nodes) do
@@ -132,6 +144,10 @@ defmodule JidoCluster.Distributed.DisconnectedIslandRuntimeTest do
 
   defp unique_manager(prefix) do
     :"manager_#{prefix}_#{System.unique_integer([:positive])}"
+  end
+
+  defp cluster_call(cluster, node, module, function, args) do
+    ExUnitCluster.call(cluster, node, module, function, args, 30_000)
   end
 
   defp assert_app_started(:ok), do: :ok

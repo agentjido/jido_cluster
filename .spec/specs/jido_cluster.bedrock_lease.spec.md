@@ -21,7 +21,9 @@ surface:
   - lib/jido/cluster/fence_token.ex
   - lib/jido/cluster/lease_claim.ex
   - lib/jido/cluster/lease.ex
+  - lib/jido_cluster/lease_store.ex
   - test/jido_cluster/lease_models_test.exs
+  - test/jido_cluster/lease_store_test.exs
   - .spec/decisions/bedrock-lease-fencing.md
 ```
 
@@ -52,6 +54,11 @@ surface:
   statement: Lease and claim cadence shall require `renew_interval_ms < ttl_ms`.
   priority: must
   stability: stable
+
+- id: jido_cluster.bedrock_lease.telemetry_events
+  statement: Lease store operations shall emit telemetry for acquire, renew, release, expiry, stale rejection, and failure outcomes.
+  priority: should
+  stability: evolving
 ```
 
 ## Scenarios
@@ -73,6 +80,7 @@ surface:
     - jido_cluster.bedrock_lease.fence_token
     - jido_cluster.bedrock_lease.lease_record
     - jido_cluster.bedrock_lease.renew_before_expiry
+    - jido_cluster.bedrock_lease.telemetry_events
 ```
 
 ## Verification
@@ -88,4 +96,11 @@ surface:
     - jido_cluster.bedrock_lease.lease_record
     - jido_cluster.bedrock_lease.renew_before_expiry
     - jido_cluster.bedrock_lease.typed_contract_examples
+    - jido_cluster.bedrock_lease.telemetry_events
+
+- kind: command
+  target: mix test test/jido_cluster/lease_store_test.exs
+  execute: true
+  covers:
+    - jido_cluster.bedrock_lease.telemetry_events
 ```

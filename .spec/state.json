@@ -62,7 +62,7 @@
         "id": "jido_cluster.acceptance.fly_failover_guide",
         "priority": "must",
         "stability": "evolving",
-        "statement": "The Fly multi-region guide shall document a concrete multi-region drill for one logical Jido.Cluster.InstanceManager with shared storage and DNS-based discovery.",
+        "statement": "The Fly failover guide shall document a connected-BEAM drill for one logical Jido.Cluster.InstanceManager with shared storage and DNS-based discovery, while stating that it is not a general multi-cluster federation model.",
         "subject_id": "jido_cluster.acceptance"
       },
       {
@@ -70,7 +70,7 @@
         "id": "jido_cluster.acceptance.multi_region_operational_shape",
         "priority": "must",
         "stability": "evolving",
-        "statement": "The multi-region guide shall describe recovery in terms of continued keyed availability, owner continuity, cluster continuity, and migration plus recovery telemetry.",
+        "statement": "The Fly drill shall describe recovery for nodes that may be deployed across regions but still participate in one connected Erlang distribution cluster, using continued keyed availability, owner continuity, cluster continuity, and migration plus recovery telemetry.",
         "subject_id": "jido_cluster.acceptance"
       },
       {
@@ -111,6 +111,14 @@
         "priority": "must",
         "stability": "stable",
         "statement": "Lease and claim cadence shall require `renew_interval_ms < ttl_ms`.",
+        "subject_id": "jido_cluster.bedrock_lease"
+      },
+      {
+        "file": ".spec/specs/jido_cluster.bedrock_lease.spec.md",
+        "id": "jido_cluster.bedrock_lease.telemetry_events",
+        "priority": "should",
+        "stability": "evolving",
+        "statement": "Lease store operations shall emit telemetry for acquire, renew, release, expiry, stale rejection, and failure outcomes.",
         "subject_id": "jido_cluster.bedrock_lease"
       },
       {
@@ -198,7 +206,15 @@
         "id": "jido_cluster.disconnected_islands.acquire_single_owner",
         "priority": "must",
         "stability": "evolving",
-        "statement": "With `{:bedrock_lease, ...}` coordination, one island shall acquire one logical owner for a key while other islands are rejected until the lease expires or is released.",
+        "statement": "In the experimental `{:bedrock_lease, ...}` coordination mode, one island shall acquire one logical owner for a key while other islands are rejected until the lease expires or is released.",
+        "subject_id": "jido_cluster.disconnected_islands"
+      },
+      {
+        "file": ".spec/specs/jido_cluster.disconnected_islands.spec.md",
+        "id": "jido_cluster.disconnected_islands.background_renewal",
+        "priority": "must",
+        "stability": "evolving",
+        "statement": "A live local lease holder shall renew idle local keys in the background before TTL expiry so another claimant cannot take over solely because no manager-routed operation arrived.",
         "subject_id": "jido_cluster.disconnected_islands"
       },
       {
@@ -207,6 +223,14 @@
         "priority": "must",
         "stability": "evolving",
         "statement": "After lease expiry, another island shall be able to acquire the same key, thaw shared durable state, and continue execution.",
+        "subject_id": "jido_cluster.disconnected_islands"
+      },
+      {
+        "file": ".spec/specs/jido_cluster.disconnected_islands.spec.md",
+        "id": "jido_cluster.disconnected_islands.lease_telemetry",
+        "priority": "should",
+        "stability": "evolving",
+        "statement": "Lease acquire, renew, release, expiry, stale rejection, and failure paths shall emit lease telemetry events.",
         "subject_id": "jido_cluster.disconnected_islands"
       },
       {
@@ -243,6 +267,14 @@
       },
       {
         "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
+        "id": "jido_cluster.ephemeral_runtime.live_transfer_sync_only",
+        "priority": "must",
+        "stability": "evolving",
+        "statement": "Live-transfer replication shall reject async replication mode until async acknowledgement semantics are explicitly implemented.",
+        "subject_id": "jido_cluster.ephemeral_runtime"
+      },
+      {
+        "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
         "id": "jido_cluster.ephemeral_runtime.planned_handoff_preserves_state",
         "priority": "must",
         "stability": "evolving",
@@ -255,6 +287,14 @@
         "priority": "must",
         "stability": "evolving",
         "statement": "A clustered key shall maintain one primary runtime and at most one standby runtime across the connected replica set.",
+        "subject_id": "jido_cluster.ephemeral_runtime"
+      },
+      {
+        "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
+        "id": "jido_cluster.ephemeral_runtime.replicas_zero_has_no_standby",
+        "priority": "must",
+        "stability": "evolving",
+        "statement": "With live_transfer and replication.replicas set to 0, a clustered key shall start only the primary runtime and shall not keep a hidden standby on another node.",
         "subject_id": "jido_cluster.ephemeral_runtime"
       },
       {
@@ -339,6 +379,22 @@
       },
       {
         "file": ".spec/specs/package.spec.md",
+        "id": "jido_cluster.package.deployment_model",
+        "priority": "must",
+        "stability": "evolving",
+        "statement": "The package README shall describe that the deployable unit is the user's OTP release, with Phoenix and headless worker apps as supported embedding models.",
+        "subject_id": "jido_cluster.package"
+      },
+      {
+        "file": ".spec/specs/package.spec.md",
+        "id": "jido_cluster.package.narrow_non_goals",
+        "priority": "must",
+        "stability": "evolving",
+        "statement": "The package README shall state that multi-cluster federation, identity fabric behavior, semantic memory, N followers, quorum acknowledgement, and domain actor frameworks are outside the public jido_cluster scope.",
+        "subject_id": "jido_cluster.package"
+      },
+      {
+        "file": ".spec/specs/package.spec.md",
         "id": "jido_cluster.package.public_namespace",
         "priority": "must",
         "stability": "stable",
@@ -347,10 +403,26 @@
       },
       {
         "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
+        "id": "jido_cluster.partition_policy.freeze_unfreeze_telemetry",
+        "priority": "should",
+        "stability": "evolving",
+        "statement": "Freeze and unfreeze transitions shall emit partition telemetry with the manager, visible nodes, quorum requirement, and stopped-key count.",
+        "subject_id": "jido_cluster.partition_policy"
+      },
+      {
+        "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
         "id": "jido_cluster.partition_policy.freeze_uses_connected_quorum",
         "priority": "must",
         "stability": "stable",
         "statement": "For connected_beam coordination with partition_policy :freeze, cluster availability shall depend on the visible node set satisfying min_quorum_nodes.",
+        "subject_id": "jido_cluster.partition_policy"
+      },
+      {
+        "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
+        "id": "jido_cluster.partition_policy.live_transfer_freezes_local_runtimes",
+        "priority": "must",
+        "stability": "evolving",
+        "statement": "For live-transfer managers, a freeze transition shall stop local key runtimes so primaries and standbys cannot keep serving or later promote inside a quorum-losing partition.",
         "subject_id": "jido_cluster.partition_policy"
       },
       {
@@ -537,7 +609,8 @@
           "jido_cluster.bedrock_lease.claim_shape",
           "jido_cluster.bedrock_lease.fence_token",
           "jido_cluster.bedrock_lease.lease_record",
-          "jido_cluster.bedrock_lease.renew_before_expiry"
+          "jido_cluster.bedrock_lease.renew_before_expiry",
+          "jido_cluster.bedrock_lease.telemetry_events"
         ],
         "file": ".spec/specs/jido_cluster.bedrock_lease.spec.md",
         "given": [
@@ -591,6 +664,23 @@
         ],
         "when": [
           "the structs are constructed through their public constructors"
+        ]
+      },
+      {
+        "covers": [
+          "jido_cluster.ephemeral_runtime.replicas_zero_has_no_standby"
+        ],
+        "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
+        "given": [
+          "two connected nodes running a live-transfer manager with replication.replicas set to 0"
+        ],
+        "id": "jido_cluster.ephemeral_runtime.no_standby_when_replicas_zero",
+        "subject_id": "jido_cluster.ephemeral_runtime",
+        "then": [
+          "only the owner node has a local runtime and the placement has no standby"
+        ],
+        "when": [
+          "a caller gets a keyed agent for the first time"
         ]
       },
       {
@@ -753,6 +843,23 @@
       },
       {
         "covers": [
+          "jido_cluster.partition_policy.live_transfer_freezes_local_runtimes"
+        ],
+        "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
+        "given": [
+          "a two-node live-transfer manager with quorum requirement 2"
+        ],
+        "id": "jido_cluster.partition_policy.live_transfer_freeze",
+        "subject_id": "jido_cluster.partition_policy",
+        "then": [
+          "both sides reject work and remove their local key runtimes until quorum returns"
+        ],
+        "when": [
+          "the nodes disconnect"
+        ]
+      },
+      {
+        "covers": [
           "jido_cluster.partition_policy.three_node_minority_freezes"
         ],
         "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
@@ -900,7 +1007,7 @@
           "id": "jido_cluster.acceptance",
           "kind": "acceptance",
           "status": "active",
-          "summary": "Bedrock-backed and multi-region acceptance stories for clustered singleton recovery.",
+          "summary": "Bedrock-backed and connected-cluster acceptance stories for keyed singleton recovery.",
           "surface": [
             "guides/fly-multi-region-failover-demo.md",
             "test/support/real_bedrock_cluster_case.ex",
@@ -926,7 +1033,9 @@
             "lib/jido/cluster/fence_token.ex",
             "lib/jido/cluster/lease_claim.ex",
             "lib/jido/cluster/lease.ex",
+            "lib/jido_cluster/lease_store.ex",
             "test/jido_cluster/lease_models_test.exs",
+            "test/jido_cluster/lease_store_test.exs",
             ".spec/decisions/bedrock-lease-fencing.md"
           ],
           "verification_minimum_strength": null
@@ -988,11 +1097,13 @@
           "decisions": null,
           "id": "jido_cluster.disconnected_islands",
           "kind": "module",
-          "status": "active",
-          "summary": "Bedrock lease-backed singleton execution across disconnected islands.",
+          "status": "experimental",
+          "summary": "Experimental Bedrock lease-backed singleton execution across disconnected islands.",
           "surface": [
             "lib/jido_cluster/instance_manager.ex",
+            "lib/jido_cluster/lease_renewer.ex",
             "lib/jido_cluster/lease_store.ex",
+            "test/jido_cluster/lease_renewer_test.exs",
             "test/jido_cluster/distributed/disconnected_island_runtime_test.exs"
           ],
           "verification_minimum_strength": null
@@ -1068,8 +1179,10 @@
           "summary": "Freeze policy uses connected-node quorum to gate clustered work under partitions.",
           "surface": [
             "lib/jido_cluster/partition_monitor.ex",
+            "lib/jido_cluster/key_runtime.ex",
             "lib/jido_cluster/internal/instance_manager_config.ex",
             "test/jido_cluster/distributed/instance_manager_cluster_test.exs",
+            "test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs",
             "test/support/eventually.ex"
           ],
           "verification_minimum_strength": null
@@ -1240,13 +1353,24 @@
           "jido_cluster.bedrock_lease.fence_token",
           "jido_cluster.bedrock_lease.lease_record",
           "jido_cluster.bedrock_lease.renew_before_expiry",
-          "jido_cluster.bedrock_lease.typed_contract_examples"
+          "jido_cluster.bedrock_lease.typed_contract_examples",
+          "jido_cluster.bedrock_lease.telemetry_events"
         ],
         "execute": true,
         "file": ".spec/specs/jido_cluster.bedrock_lease.spec.md",
         "kind": "command",
         "subject_id": "jido_cluster.bedrock_lease",
         "target": "mix test test/jido_cluster/lease_models_test.exs"
+      },
+      {
+        "covers": [
+          "jido_cluster.bedrock_lease.telemetry_events"
+        ],
+        "execute": true,
+        "file": ".spec/specs/jido_cluster.bedrock_lease.spec.md",
+        "kind": "command",
+        "subject_id": "jido_cluster.bedrock_lease",
+        "target": "mix test test/jido_cluster/lease_store_test.exs"
       },
       {
         "covers": [
@@ -1332,9 +1456,11 @@
         "covers": [
           "jido_cluster.disconnected_islands.acquire_single_owner",
           "jido_cluster.disconnected_islands.renew_before_expiry",
+          "jido_cluster.disconnected_islands.background_renewal",
           "jido_cluster.disconnected_islands.expiry_failover",
           "jido_cluster.disconnected_islands.stale_holder_rejected",
-          "jido_cluster.disconnected_islands.release_and_reacquire"
+          "jido_cluster.disconnected_islands.release_and_reacquire",
+          "jido_cluster.disconnected_islands.lease_telemetry"
         ],
         "execute": true,
         "file": ".spec/specs/jido_cluster.disconnected_islands.spec.md",
@@ -1344,11 +1470,23 @@
       },
       {
         "covers": [
+          "jido_cluster.disconnected_islands.background_renewal"
+        ],
+        "execute": true,
+        "file": ".spec/specs/jido_cluster.disconnected_islands.spec.md",
+        "kind": "command",
+        "subject_id": "jido_cluster.disconnected_islands",
+        "target": "mix test test/jido_cluster/lease_renewer_test.exs"
+      },
+      {
+        "covers": [
           "jido_cluster.ephemeral_runtime.primary_and_standby_roles",
+          "jido_cluster.ephemeral_runtime.replicas_zero_has_no_standby",
           "jido_cluster.ephemeral_runtime.sync_replication_before_reply",
           "jido_cluster.ephemeral_runtime.planned_handoff_preserves_state",
           "jido_cluster.ephemeral_runtime.failover_promotes_latest_acknowledged_state",
           "jido_cluster.ephemeral_runtime.replica_set_boot",
+          "jido_cluster.ephemeral_runtime.no_standby_when_replicas_zero",
           "jido_cluster.ephemeral_runtime.sync_call_and_cast",
           "jido_cluster.ephemeral_runtime.planned_handoff",
           "jido_cluster.ephemeral_runtime.primary_loss_failover",
@@ -1359,6 +1497,16 @@
         "kind": "command",
         "subject_id": "jido_cluster.ephemeral_runtime",
         "target": "mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs"
+      },
+      {
+        "covers": [
+          "jido_cluster.ephemeral_runtime.live_transfer_sync_only"
+        ],
+        "execute": true,
+        "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
+        "kind": "command",
+        "subject_id": "jido_cluster.ephemeral_runtime",
+        "target": "mix test test/jido_cluster/structs_test.exs"
       },
       {
         "covers": [
@@ -1410,7 +1558,9 @@
         "covers": [
           "jido_cluster.package.alpha_status",
           "jido_cluster.package.public_namespace",
-          "jido_cluster.package.connected_beam_runtime"
+          "jido_cluster.package.connected_beam_runtime",
+          "jido_cluster.package.deployment_model",
+          "jido_cluster.package.narrow_non_goals"
         ],
         "file": ".spec/specs/package.spec.md",
         "kind": "readme_file",
@@ -1448,6 +1598,18 @@
         "kind": "command",
         "subject_id": "jido_cluster.partition_policy",
         "target": "mix test test/jido_cluster/distributed/instance_manager_cluster_test.exs"
+      },
+      {
+        "covers": [
+          "jido_cluster.partition_policy.live_transfer_freezes_local_runtimes",
+          "jido_cluster.partition_policy.freeze_unfreeze_telemetry",
+          "jido_cluster.partition_policy.live_transfer_freeze"
+        ],
+        "execute": true,
+        "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
+        "kind": "command",
+        "subject_id": "jido_cluster.partition_policy",
+        "target": "mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs"
       },
       {
         "covers": [
@@ -1585,10 +1747,10 @@
     "decisions": 1,
     "exceptions": 0,
     "findings": 0,
-    "requirements": 64,
-    "scenarios": 20,
+    "requirements": 73,
+    "scenarios": 22,
     "subjects": 15,
-    "verifications": 34
+    "verifications": 38
   },
   "verification": {
     "claims": [
@@ -1725,6 +1887,17 @@
         "verification_index": 0
       },
       {
+        "cover_id": "jido_cluster.bedrock_lease.telemetry_events",
+        "file": ".spec/specs/jido_cluster.bedrock_lease.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.bedrock_lease",
+        "target": "mix test test/jido_cluster/lease_models_test.exs",
+        "verification_index": 0
+      },
+      {
         "cover_id": "jido_cluster.bedrock_lease.typed_backend",
         "file": ".spec/specs/jido_cluster.bedrock_lease.spec.md",
         "kind": "command",
@@ -1745,6 +1918,17 @@
         "subject_id": "jido_cluster.bedrock_lease",
         "target": "mix test test/jido_cluster/lease_models_test.exs",
         "verification_index": 0
+      },
+      {
+        "cover_id": "jido_cluster.bedrock_lease.telemetry_events",
+        "file": ".spec/specs/jido_cluster.bedrock_lease.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.bedrock_lease",
+        "target": "mix test test/jido_cluster/lease_store_test.exs",
+        "verification_index": 1
       },
       {
         "cover_id": "jido_cluster.bootstrap.namespaces_expose_connected_nodes",
@@ -1912,7 +2096,29 @@
         "verification_index": 0
       },
       {
+        "cover_id": "jido_cluster.disconnected_islands.background_renewal",
+        "file": ".spec/specs/jido_cluster.disconnected_islands.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.disconnected_islands",
+        "target": "mix test --include real_bedrock test/jido_cluster/distributed/disconnected_island_runtime_test.exs",
+        "verification_index": 0
+      },
+      {
         "cover_id": "jido_cluster.disconnected_islands.expiry_failover",
+        "file": ".spec/specs/jido_cluster.disconnected_islands.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.disconnected_islands",
+        "target": "mix test --include real_bedrock test/jido_cluster/distributed/disconnected_island_runtime_test.exs",
+        "verification_index": 0
+      },
+      {
+        "cover_id": "jido_cluster.disconnected_islands.lease_telemetry",
         "file": ".spec/specs/jido_cluster.disconnected_islands.spec.md",
         "kind": "command",
         "meets_minimum": true,
@@ -1956,7 +2162,29 @@
         "verification_index": 0
       },
       {
+        "cover_id": "jido_cluster.disconnected_islands.background_renewal",
+        "file": ".spec/specs/jido_cluster.disconnected_islands.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.disconnected_islands",
+        "target": "mix test test/jido_cluster/lease_renewer_test.exs",
+        "verification_index": 1
+      },
+      {
         "cover_id": "jido_cluster.ephemeral_runtime.failover_promotes_latest_acknowledged_state",
+        "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.ephemeral_runtime",
+        "target": "mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs",
+        "verification_index": 0
+      },
+      {
+        "cover_id": "jido_cluster.ephemeral_runtime.no_standby_when_replicas_zero",
         "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
         "kind": "command",
         "meets_minimum": true,
@@ -2022,6 +2250,17 @@
         "verification_index": 0
       },
       {
+        "cover_id": "jido_cluster.ephemeral_runtime.replicas_zero_has_no_standby",
+        "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.ephemeral_runtime",
+        "target": "mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs",
+        "verification_index": 0
+      },
+      {
         "cover_id": "jido_cluster.ephemeral_runtime.soft_owner_reconnect_heal",
         "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
         "kind": "command",
@@ -2053,6 +2292,17 @@
         "subject_id": "jido_cluster.ephemeral_runtime",
         "target": "mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs",
         "verification_index": 0
+      },
+      {
+        "cover_id": "jido_cluster.ephemeral_runtime.live_transfer_sync_only",
+        "file": ".spec/specs/jido_cluster.ephemeral_runtime.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.ephemeral_runtime",
+        "target": "mix test test/jido_cluster/structs_test.exs",
+        "verification_index": 1
       },
       {
         "cover_id": "jido_cluster.errors.public_error_facade",
@@ -2209,6 +2459,28 @@
         "verification_index": 0
       },
       {
+        "cover_id": "jido_cluster.package.deployment_model",
+        "file": ".spec/specs/package.spec.md",
+        "kind": "readme_file",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "linked",
+        "subject_id": "jido_cluster.package",
+        "target": "README.md",
+        "verification_index": 0
+      },
+      {
+        "cover_id": "jido_cluster.package.narrow_non_goals",
+        "file": ".spec/specs/package.spec.md",
+        "kind": "readme_file",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "linked",
+        "subject_id": "jido_cluster.package",
+        "target": "README.md",
+        "verification_index": 0
+      },
+      {
         "cover_id": "jido_cluster.package.public_namespace",
         "file": ".spec/specs/package.spec.md",
         "kind": "readme_file",
@@ -2295,6 +2567,39 @@
         "subject_id": "jido_cluster.partition_policy",
         "target": "mix test test/jido_cluster/distributed/instance_manager_cluster_test.exs",
         "verification_index": 0
+      },
+      {
+        "cover_id": "jido_cluster.partition_policy.freeze_unfreeze_telemetry",
+        "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.partition_policy",
+        "target": "mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs",
+        "verification_index": 1
+      },
+      {
+        "cover_id": "jido_cluster.partition_policy.live_transfer_freeze",
+        "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.partition_policy",
+        "target": "mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs",
+        "verification_index": 1
+      },
+      {
+        "cover_id": "jido_cluster.partition_policy.live_transfer_freezes_local_runtimes",
+        "file": ".spec/specs/jido_cluster.partition_policy.spec.md",
+        "kind": "command",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "claimed",
+        "subject_id": "jido_cluster.partition_policy",
+        "target": "mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs",
+        "verification_index": 1
       },
       {
         "cover_id": "jido_cluster.rebalancer.ets_skip_with_telemetry",
@@ -2608,9 +2913,9 @@
     "cli_minimum_strength": null,
     "default_minimum_strength": "claimed",
     "strength_summary": {
-      "claimed": 65,
+      "claimed": 76,
       "executed": 0,
-      "linked": 27
+      "linked": 29
     },
     "threshold_failures": 0
   },

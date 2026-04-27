@@ -1,9 +1,12 @@
 # Jido Cluster
 
-`jido_cluster` provides a minimal distributed runtime for keyed Jido agents across multiple BEAM nodes.
+`jido_cluster` is a low-level clustered runtime for keyed Jido agents across
+connected BEAM nodes.
 
-It layers cluster ownership, routing, and conservative rebalancing around `Jido.Agent.InstanceManager`, plus
-shared persistence adapters for multi-node recovery.
+It lets an application route work by logical key while the runtime handles
+owner-node placement, singleton ownership, conservative rebalancing, and
+storage-backed recovery. The deployable unit is your OTP release, not a
+standalone `jido_cluster` service.
 
 ## Alpha Status
 
@@ -22,12 +25,28 @@ Primary public namespace: `Jido.Cluster.*` (legacy `JidoCluster.*` remains avail
 ## Features
 
 <!-- covers: jido_cluster.package.connected_beam_runtime -->
-- Global singleton semantics per `{cluster, jido_instance, id}` key.
+- Keyed singleton semantics per `{manager, key}`.
 - Deterministic owner-node placement via rendezvous hashing.
 - Cross-node `get/lookup/call/cast/stop` API by key.
 - Conservative rebalancer (`30_000ms`, max `1` migration/tick by default).
 - `Jido.Storage` adapters for ETS, Mnesia, Bedrock, and Postgres (raw Ecto).
 - Multi-node ExUnit testing support using `ex_unit_cluster` and `:peer`.
+
+## When To Use It
+
+<!-- covers: jido_cluster.package.narrow_non_goals -->
+
+Use `jido_cluster` when an app has stateful keyed work that should have one
+active owner in a connected BEAM cluster:
+
+- one workflow runner per `{tenant_id, workflow_id}`
+- one coordinator per account, customer, device, or session
+- one long-running agent per task or job key
+- one recoverable process whose state can resume through shared storage
+
+Do not use `jido_cluster` as a general multi-cluster fabric, semantic memory
+system, quorum replication layer, or domain actor framework. Those higher-level
+concerns should live above this package.
 
 ## Installation
 
@@ -53,7 +72,7 @@ mix deps.get
 
 ## Quick Start
 
-Start a distributed manager in your supervision tree:
+Start a distributed manager in your application's supervision tree:
 
 ```elixir
 children = [
@@ -84,15 +103,45 @@ owner = Jido.Cluster.InstanceManager.owner_node(MyApp.ClusterManager, "counter-1
 stats = Jido.Cluster.InstanceManager.stats(MyApp.ClusterManager)
 ```
 
+## Deployment Model
+
+<!-- covers: jido_cluster.package.deployment_model -->
+
+`jido_cluster` is embedded in an OTP application. Run the same release on
+multiple connected BEAM nodes, and start the same `Jido.Cluster.InstanceManager`
+configuration on each participating node.
+
+Use a Phoenix app when HTTP, webhooks, WebSockets, LiveView, or admin endpoints
+are the ingress. A controller or channel can build a `Jido.Signal` and route it
+through `Jido.Cluster.InstanceManager.call/4`; the request may hit any node.
+
+Use a headless OTP release when the ingress is a queue, PubSub topic, Kafka,
+SQS, cron, sensors, or another internal event source. The worker consumes the
+event and routes it through the same manager API.
+
+In both cases, callers address logical keys, not pids or nodes.
+
 ## Ownership Contract
 
 - Route clustered work through `Jido.Cluster.InstanceManager` by `{manager, key}`.
 - One logical key has one active primary and at most one standby.
+- Live-transfer mode is sync-only today. Configure `replication: %{replicas: 0, mode: :sync}` for primary-only placement or `replication: %{replicas: 1, mode: :sync}` for primary plus standby.
 - Returned pids from `get/lookup` are short-lived observations of the current
   primary, not a durable cluster identity.
 - `epoch` tracks ownership changes such as promotion and planned handoff.
 - `seq` tracks the last acknowledged replicated update for the key.
 - `owner_node/2` and `stats/1` reflect the current visible cluster view.
+
+## Partition Policy
+
+With `coordination_backend: :connected_beam` and `partition_policy: :freeze`,
+`min_quorum_nodes` gates clustered work. When quorum is lost, managers reject
+new work with `{:error, :cluster_unavailable}` and local ownership is stopped.
+Live-transfer managers stop both local primaries and standbys so a minority
+partition cannot continue serving or promote a standby later.
+
+Freeze and unfreeze transitions emit telemetry under
+`[:jido_cluster, :partition, :freeze | :unfreeze]`.
 
 ## Storage Adapters
 
@@ -112,9 +161,20 @@ stats = Jido.Cluster.InstanceManager.stats(MyApp.ClusterManager)
 - Rebalancer only moves keys when storage backend is shared.
 - ETS migrations are skipped and emit telemetry events.
 
+## Experimental Bedrock Lease Mode
+
+`coordination_backend: {:bedrock_lease, opts}` is an experimental disconnected
+island mode. A local renewer refreshes active leases for idle local keys before
+TTL expiry; if renewal fails or another holder owns the key, the local runtime
+is stopped. Lease acquire, renew, release, expiry, stale rejection, and failure
+paths emit telemetry under `[:jido_cluster, :lease, stage]`.
+
 ## Production Drill
 
-- [Fly multi-region failover demo](guides/fly-multi-region-failover-demo.md)
+- [Fly connected-cluster failover drill](guides/fly-multi-region-failover-demo.md)
+
+The Fly guide is an advanced connected-BEAM/shared-storage drill. It is not a
+general multi-cluster federation guarantee.
 
 ## Testing Multi-Node Behavior
 

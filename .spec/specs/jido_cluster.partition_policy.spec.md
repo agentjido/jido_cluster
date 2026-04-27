@@ -15,8 +15,10 @@ status: active
 summary: Freeze policy uses connected-node quorum to gate clustered work under partitions.
 surface:
   - lib/jido_cluster/partition_monitor.ex
+  - lib/jido_cluster/key_runtime.ex
   - lib/jido_cluster/internal/instance_manager_config.ex
   - test/jido_cluster/distributed/instance_manager_cluster_test.exs
+  - test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs
   - test/support/eventually.ex
 ```
 
@@ -32,6 +34,16 @@ surface:
   statement: A two-node split with quorum requirement 2 shall freeze both sides, reject new clustered work, and stop local ownership.
   priority: must
   stability: stable
+
+- id: jido_cluster.partition_policy.live_transfer_freezes_local_runtimes
+  statement: For live-transfer managers, a freeze transition shall stop local key runtimes so primaries and standbys cannot keep serving or later promote inside a quorum-losing partition.
+  priority: must
+  stability: evolving
+
+- id: jido_cluster.partition_policy.freeze_unfreeze_telemetry
+  statement: Freeze and unfreeze transitions shall emit partition telemetry with the manager, visible nodes, quorum requirement, and stopped-key count.
+  priority: should
+  stability: evolving
 
 - id: jido_cluster.partition_policy.three_node_minority_freezes
   statement: In a three-node split with quorum requirement 2, the minority side shall freeze while the majority side can recover ownership.
@@ -51,6 +63,16 @@ surface:
     - both sides freeze during the split and the logical key can resume after heal
   covers:
     - jido_cluster.partition_policy.two_node_split_freezes_both_sides
+
+- id: jido_cluster.partition_policy.live_transfer_freeze
+  given:
+    - a two-node live-transfer manager with quorum requirement 2
+  when:
+    - the nodes disconnect
+  then:
+    - both sides reject work and remove their local key runtimes until quorum returns
+  covers:
+    - jido_cluster.partition_policy.live_transfer_freezes_local_runtimes
 
 - id: jido_cluster.partition_policy.three_node_majority_recovery
   given:
@@ -75,4 +97,12 @@ surface:
     - jido_cluster.partition_policy.three_node_minority_freezes
     - jido_cluster.partition_policy.two_node_freeze_recover
     - jido_cluster.partition_policy.three_node_majority_recovery
+
+- kind: command
+  target: mix test test/jido_cluster/distributed/ephemeral_instance_manager_cluster_test.exs
+  execute: true
+  covers:
+    - jido_cluster.partition_policy.live_transfer_freezes_local_runtimes
+    - jido_cluster.partition_policy.freeze_unfreeze_telemetry
+    - jido_cluster.partition_policy.live_transfer_freeze
 ```

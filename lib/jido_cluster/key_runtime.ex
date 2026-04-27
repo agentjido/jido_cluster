@@ -22,7 +22,7 @@ defmodule JidoCluster.KeyRuntime do
       id: {__MODULE__, manager, key},
       start: {__MODULE__, :start_link, [opts]},
       type: :worker,
-      restart: :permanent,
+      restart: :transient,
       shutdown: 5_000
     }
   end
@@ -47,7 +47,8 @@ defmodule JidoCluster.KeyRuntime do
           {:ok, %{primary: node(), standby: node() | nil}} | {:error, term()}
   def ensure_replica_set(manager, key, opts \\ [], timeout \\ @default_timeout_ms) do
     nodes = Topology.connected_nodes()
-    %Placement{primary: primary, standby: standby} = Topology.placement(manager, key, nodes, 2)
+    placement_count = placement_count(manager, nodes)
+    %Placement{primary: primary, standby: standby} = Topology.placement(manager, key, nodes, placement_count)
 
     base = %{
       primary: primary,
@@ -96,10 +97,23 @@ defmodule JidoCluster.KeyRuntime do
     end
   end
 
+  @spec local_keys(term()) :: [term()]
+  def local_keys(manager) do
+    registry = registry_name(manager)
+
+    case Process.whereis(registry) do
+      nil ->
+        []
+
+      _pid ->
+        Registry.select(registry, [{{:"$1", :_, :_}, [], [:"$1"]}])
+    end
+  end
+
   @spec primary_keys(term()) :: [term()]
   def primary_keys(manager) do
-    registry_name(manager)
-    |> Registry.select([{{:"$1", :_, :_}, [], [:"$1"]}])
+    manager
+    |> local_keys()
     |> Enum.filter(fn key ->
       case local_summary(manager, key) do
         %{role: :primary} -> true
@@ -322,6 +336,7 @@ defmodule JidoCluster.KeyRuntime do
   def handle_call({:handoff, target, timeout}, _from, %{role: :primary} = state) do
     case do_handoff(state, target, timeout) do
       {:ok, new_state} -> {:reply, :ok, publish_summary(new_state)}
+      {:ok, :stop, new_state} -> {:stop, :normal, :ok, new_state}
       {:error, reason, new_state} -> {:reply, {:error, reason}, publish_summary(new_state)}
     end
   end
@@ -568,10 +583,28 @@ defmodule JidoCluster.KeyRuntime do
     end
   end
 
+  defp placement_count(manager, nodes \\ Topology.connected_nodes()) do
+    nodes
+    |> length()
+    |> min(replica_count(manager) + 1)
+    |> max(1)
+  end
+
+  defp replica_count(manager) do
+    case InstanceManagerConfig.fetch_cluster(manager) do
+      {:ok, %{replication: %{replicas: replicas}}} when replicas in [0, 1] -> replicas
+      _ -> 0
+    end
+  end
+
   defp reconcile_with_winner(winner, loser, manager, key, timeout) do
     winner_node = winner.primary
     loser_node = loser.node
-    standby_node = if loser_node == winner_node, do: nil, else: loser_node
+
+    standby_node =
+      if replica_count(manager) > 0 and loser_node != winner_node do
+        loser_node
+      end
 
     with {:ok, {:ok, agent_snapshot}} <- Remote.rpc(winner_node, __MODULE__, :agent_snapshot, [manager, key], timeout),
          winner_snapshot <-
@@ -585,14 +618,40 @@ defmodule JidoCluster.KeyRuntime do
              standby_node,
              agent_snapshot
            ),
-         {:ok, _} <-
+         :ok <- reconcile_loser(loser_node, standby_node, manager, key, winner, winner_snapshot, timeout),
+         {:ok, :ok} <-
+           Remote.rpc(
+             winner_node,
+             __MODULE__,
+             :adopt_runtime,
+             [winner_snapshot],
+             timeout
+           ) do
+      {:ok, :ok}
+    else
+      {:error, reason} -> {:error, reason}
+      {:ok, other} -> {:error, {:unexpected_reconcile_result, other}}
+    end
+  end
+
+  defp reconcile_loser(loser_node, nil, manager, key, _winner, _winner_snapshot, timeout) do
+    case Remote.rpc(loser_node, __MODULE__, :stop_local, [manager, key], timeout) do
+      {:ok, :ok} -> :ok
+      {:ok, {:error, :not_found}} -> :ok
+      {:ok, {:error, reason}} -> {:error, reason}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp reconcile_loser(loser_node, standby_node, manager, key, winner, winner_snapshot, timeout) do
+    with {:ok, _} <-
            ensure_remote_runtime(
              loser_node,
              manager,
              key,
              %{
                role: :standby,
-               primary: winner_node,
+               primary: winner.primary,
                standby: standby_node,
                epoch: winner.epoch,
                seq: winner.seq
@@ -606,19 +665,11 @@ defmodule JidoCluster.KeyRuntime do
              :adopt_runtime,
              [RuntimeSnapshot.new!(Map.from_struct(winner_snapshot) |> Map.put(:cluster_role, :standby))],
              timeout
-           ),
-         {:ok, :ok} <-
-           Remote.rpc(
-             winner_node,
-             __MODULE__,
-             :adopt_runtime,
-             [winner_snapshot],
-             timeout
            ) do
-      {:ok, :ok}
+      :ok
     else
       {:error, reason} -> {:error, reason}
-      {:ok, other} -> {:error, {:unexpected_reconcile_result, other}}
+      {:ok, other} -> {:error, {:unexpected_reconcile_loser_result, other}}
     end
   end
 
@@ -677,7 +728,15 @@ defmodule JidoCluster.KeyRuntime do
     {:ok, %{state | seq: next_seq || state.seq}}
   end
 
-  defp do_sync_standby(%{standby: standby} = state, timeout, next_seq) do
+  defp do_sync_standby(state, timeout, next_seq) do
+    if replica_count(state.manager) == 0 do
+      {:ok, %{state | standby: nil, seq: next_seq || state.seq}}
+    else
+      do_sync_configured_standby(state, timeout, next_seq)
+    end
+  end
+
+  defp do_sync_configured_standby(%{standby: standby} = state, timeout, next_seq) do
     if standby == Node.self() do
       {:ok, %{state | seq: next_seq || state.seq}}
     else
@@ -721,7 +780,7 @@ defmodule JidoCluster.KeyRuntime do
 
   defp do_handoff(state, target, timeout) do
     next_epoch = state.epoch + 1
-    new_standby = Node.self()
+    new_standby = if replica_count(state.manager) > 0, do: Node.self(), else: nil
 
     with {:ok, agent_snapshot} <- capture_agent_snapshot(state.agent_pid),
          target_snapshot <-
@@ -731,17 +790,6 @@ defmodule JidoCluster.KeyRuntime do
              next_epoch,
              state.seq,
              :primary,
-             target,
-             new_standby,
-             agent_snapshot
-           ),
-         local_snapshot <-
-           build_runtime_snapshot(
-             state.key,
-             state.manager,
-             next_epoch,
-             state.seq,
-             :standby,
              target,
              new_standby,
              agent_snapshot
@@ -761,14 +809,36 @@ defmodule JidoCluster.KeyRuntime do
              timeout
            ),
          {:ok, :ok} <- Remote.rpc(target, __MODULE__, :adopt_runtime, [target_snapshot], timeout) do
-      {:ok, apply_snapshot(state, local_snapshot)}
+      maybe_keep_local_standby(state, target, new_standby, next_epoch, agent_snapshot)
     else
       {:error, reason} -> {:error, reason, state}
     end
   end
 
+  defp maybe_keep_local_standby(state, _target, nil, _next_epoch, _agent_snapshot) do
+    {:ok, :stop, stop_local_agent(%{state | primary: nil, standby: nil})}
+  end
+
+  defp maybe_keep_local_standby(state, target, new_standby, next_epoch, agent_snapshot) do
+    local_snapshot =
+      build_runtime_snapshot(
+        state.key,
+        state.manager,
+        next_epoch,
+        state.seq,
+        :standby,
+        target,
+        new_standby,
+        agent_snapshot
+      )
+
+    {:ok, apply_snapshot(state, local_snapshot)}
+  end
+
   defp maybe_heal(%{primary: primary, standby: standby} = state) do
-    desired = Topology.replica_nodes(state.manager, state.key, Topology.connected_nodes(), 2)
+    desired =
+      Topology.replica_nodes(state.manager, state.key, Topology.connected_nodes(), placement_count(state.manager))
+
     desired_primary = hd(desired)
     desired_standby = Enum.at(desired, 1)
     peer = Enum.find([primary, standby, desired_primary, desired_standby], &(&1 && &1 != Node.self()))
@@ -836,11 +906,15 @@ defmodule JidoCluster.KeyRuntime do
 
   defp maybe_push_primary_state(%{role: :primary} = state, peer, _desired_primary, _desired_standby) do
     winner_primary = Node.self()
-    winner_standby = peer
+    winner_standby = if replica_count(state.manager) > 0, do: peer, else: nil
 
-    case do_sync_standby(%{state | primary: winner_primary, standby: winner_standby}, @default_timeout_ms) do
-      {:ok, new_state} -> %{new_state | primary: winner_primary, standby: winner_standby} |> publish_summary()
-      _ -> state
+    if winner_standby do
+      case do_sync_standby(%{state | primary: winner_primary, standby: winner_standby}, @default_timeout_ms) do
+        {:ok, new_state} -> %{new_state | primary: winner_primary, standby: winner_standby} |> publish_summary()
+        _ -> state
+      end
+    else
+      %{state | primary: winner_primary, standby: nil} |> publish_summary()
     end
   end
 

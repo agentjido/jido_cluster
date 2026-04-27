@@ -251,7 +251,8 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
     [
       capabilities: [],
       path_to_descriptor: Path.join(tmp_dir, "bedrock.cluster"),
-      worker: [path: Path.join(tmp_dir, "workers")]
+      worker: [path: Path.join(tmp_dir, "workers")],
+      durability_mode: :relaxed
     ]
   end
 
@@ -287,6 +288,17 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
     with {:ok, link} <- TestCluster.fetch_link(),
          {:ok, tsl} <- Link.fetch_transaction_system_layout(link) do
       layout_ready?(tsl)
+    else
+      _ -> seed_link_layout_from_coordinator()
+    end
+  end
+
+  defp seed_link_layout_from_coordinator do
+    with {:ok, link} <- TestCluster.fetch_link(),
+         {:ok, tsl} <- TestCluster.fetch_transaction_system_layout(),
+         true <- layout_ready?(tsl) do
+      send(link, {:tsl_updated, tsl})
+      true
     else
       _ -> false
     end

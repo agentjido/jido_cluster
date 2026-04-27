@@ -27,6 +27,16 @@ defmodule JidoCluster.StructsTest do
     assert config.partition_policy == :soft_owner
   end
 
+  test "live transfer rejects async replication because acknowledgements are sync-only" do
+    assert {:error, _reason} =
+             Config.new(
+               name: :agents,
+               agent: JidoCluster.Test.CounterAgent,
+               handoff_mode: :live_transfer,
+               replication: %{replicas: 1, mode: :async, promotion_timeout_ms: 750}
+             )
+  end
+
   test "placement captures primary and standby ordering" do
     placement =
       Placement.new!(

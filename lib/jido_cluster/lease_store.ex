@@ -7,55 +7,135 @@ defmodule JidoCluster.LeaseStore do
 
   @spec acquire_or_renew(term(), term(), term(), LeaseBackend.t()) :: {:ok, Lease.t()} | {:error, acquire_error()}
   def acquire_or_renew(manager, key, claimant, %LeaseBackend{} = backend) do
-    transact(backend, fn repo ->
-      now_ms = System.system_time(:millisecond)
-      storage_key = lease_key(backend.prefix, manager, key)
+    result =
+      transact(backend, fn repo ->
+        now_ms = System.system_time(:millisecond)
+        storage_key = lease_key(backend.prefix, manager, key)
 
-      case read_lease(repo, storage_key) do
-        nil ->
-          lease = build_new_lease(manager, key, claimant, 1, now_ms, backend)
-          write_lease(repo, storage_key, lease)
-          {:ok, lease}
+        case read_lease(repo, storage_key) do
+          nil ->
+            lease = build_new_lease(manager, key, claimant, 1, now_ms, backend)
+            write_lease(repo, storage_key, lease)
+            {:acquired, lease}
 
-        %Lease{} = lease ->
-          cond do
-            lease.holder == claimant and not Lease.expired?(lease, now_ms) and lease.status == :active ->
-              renewed = %{lease | expires_at_ms: now_ms + backend.ttl_ms}
-              write_lease(repo, storage_key, renewed)
-              {:ok, renewed}
+          %Lease{} = lease ->
+            cond do
+              lease.holder == claimant and not Lease.expired?(lease, now_ms) and lease.status == :active ->
+                renewed = %{lease | expires_at_ms: now_ms + backend.ttl_ms}
+                write_lease(repo, storage_key, renewed)
+                {:renewed, renewed}
 
-            lease.status in [:released, :expired] or Lease.expired?(lease, now_ms) ->
-              next_epoch = lease.epoch + 1
-              next_lease = build_new_lease(manager, key, claimant, next_epoch, now_ms, backend)
-              write_lease(repo, storage_key, next_lease)
-              {:ok, next_lease}
+              Lease.expired?(lease, now_ms) ->
+                next_epoch = lease.epoch + 1
+                next_lease = build_new_lease(manager, key, claimant, next_epoch, now_ms, backend)
+                write_lease(repo, storage_key, next_lease)
+                {:expired, lease, next_lease}
 
-            true ->
-              rollback(repo, :lease_unavailable)
-          end
-      end
-    end)
+              lease.status in [:released, :expired] ->
+                next_epoch = lease.epoch + 1
+                next_lease = build_new_lease(manager, key, claimant, next_epoch, now_ms, backend)
+                write_lease(repo, storage_key, next_lease)
+                {:acquired, next_lease}
+
+              true ->
+                rollback(repo, :lease_unavailable)
+            end
+        end
+      end)
+
+    case result do
+      {:acquired, %Lease{} = lease} ->
+        emit(:acquire, %{count: 1}, lease_metadata(lease))
+        {:ok, lease}
+
+      {:renewed, %Lease{} = lease} ->
+        emit(:renew, %{count: 1}, lease_metadata(lease))
+        {:ok, lease}
+
+      {:expired, %Lease{} = prior_lease, %Lease{} = next_lease} ->
+        emit(:expiry, %{count: 1}, lease_metadata(prior_lease))
+        emit(:acquire, %{count: 1}, lease_metadata(next_lease))
+        {:ok, next_lease}
+
+      {:error, :lease_unavailable} = error ->
+        emit(:stale_rejection, %{count: 1}, request_metadata(manager, key, claimant, :lease_unavailable))
+        error
+
+      {:error, reason} = error ->
+        emit(:failure, %{count: 1}, request_metadata(manager, key, claimant, reason))
+        error
+    end
+  end
+
+  @spec assert_active(term(), term(), term(), LeaseBackend.t()) :: :ok | {:error, :lease_unavailable | :stale | term()}
+  def assert_active(manager, key, claimant, %LeaseBackend{} = backend) do
+    result =
+      transact(backend, fn repo ->
+        now_ms = System.system_time(:millisecond)
+
+        case read_lease(repo, lease_key(backend.prefix, manager, key)) do
+          %Lease{holder: ^claimant, status: :active} = lease ->
+            if Lease.expired?(lease, now_ms), do: rollback(repo, :stale), else: :ok
+
+          %Lease{} ->
+            rollback(repo, :lease_unavailable)
+
+          nil ->
+            rollback(repo, :lease_unavailable)
+        end
+      end)
+
+    case result do
+      :ok ->
+        :ok
+
+      {:error, reason} = error when reason in [:lease_unavailable, :stale] ->
+        emit(:stale_rejection, %{count: 1}, request_metadata(manager, key, claimant, reason))
+        error
+
+      {:error, reason} = error ->
+        emit(:failure, %{count: 1}, request_metadata(manager, key, claimant, reason))
+        error
+    end
   end
 
   @spec release(term(), term(), term(), LeaseBackend.t()) :: :ok | {:error, :stale | term()}
   def release(manager, key, claimant, %LeaseBackend{} = backend) do
-    transact(backend, fn repo ->
-      now_ms = System.system_time(:millisecond)
-      storage_key = lease_key(backend.prefix, manager, key)
+    result =
+      transact(backend, fn repo ->
+        now_ms = System.system_time(:millisecond)
+        storage_key = lease_key(backend.prefix, manager, key)
 
-      case read_lease(repo, storage_key) do
-        %Lease{holder: ^claimant} = lease ->
-          released = %{lease | status: :released, expires_at_ms: now_ms}
-          write_lease(repo, storage_key, released)
-          :ok
+        case read_lease(repo, storage_key) do
+          %Lease{holder: ^claimant} = lease ->
+            released = %{lease | status: :released, expires_at_ms: now_ms}
+            write_lease(repo, storage_key, released)
+            {:released, released}
 
-        %Lease{} ->
-          rollback(repo, :stale)
+          %Lease{} ->
+            rollback(repo, :stale)
 
-        nil ->
-          :ok
-      end
-    end)
+          nil ->
+            :ok
+        end
+      end)
+
+    case result do
+      {:released, %Lease{} = lease} ->
+        emit(:release, %{count: 1}, lease_metadata(lease))
+        :ok
+
+      :ok ->
+        :ok
+
+      {:error, :stale} = error ->
+        emit(:stale_rejection, %{count: 1}, request_metadata(manager, key, claimant, :stale))
+        error
+
+      {:error, reason} = error ->
+        emit(:failure, %{count: 1}, request_metadata(manager, key, claimant, reason))
+        error
+    end
   end
 
   @spec current_holder(term(), term(), LeaseBackend.t()) :: {:ok, term() | nil} | {:error, term()}
@@ -126,6 +206,31 @@ defmodule JidoCluster.LeaseStore do
 
   defp write_lease(repo, storage_key, %Lease{} = lease) do
     :ok = repo.put(storage_key, :erlang.term_to_binary(lease))
+  end
+
+  defp lease_metadata(%Lease{} = lease) do
+    %{
+      manager: lease.manager,
+      key: lease.key,
+      holder: lease.holder,
+      lease_id: lease.lease_id,
+      epoch: lease.epoch,
+      status: lease.status,
+      expires_at_ms: lease.expires_at_ms
+    }
+  end
+
+  defp request_metadata(manager, key, claimant, reason) do
+    %{
+      manager: manager,
+      key: key,
+      holder: claimant,
+      reason: reason
+    }
+  end
+
+  defp emit(stage, measurements, metadata) do
+    :telemetry.execute([:jido_cluster, :lease, stage], measurements, metadata)
   end
 
   defp transact(%LeaseBackend{repo: repo}, fun) when is_function(fun, 1) do

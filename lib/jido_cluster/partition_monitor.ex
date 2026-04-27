@@ -9,7 +9,8 @@ defmodule JidoCluster.PartitionMonitor do
 
   use GenServer
 
-  alias JidoCluster.Topology
+  alias JidoCluster.Internal.InstanceManagerConfig
+  alias JidoCluster.{KeyRuntime, Rebalancer, Topology}
 
   @type state :: %{
           manager: term(),
@@ -71,15 +72,22 @@ defmodule JidoCluster.PartitionMonitor do
   end
 
   defp evaluate_topology(%{coordination_backend: :connected_beam} = state) do
-    quorum_met? = Topology.quorum_met?(state.min_quorum_nodes, Topology.connected_nodes())
+    nodes = Topology.connected_nodes()
+    quorum_met? = Topology.quorum_met?(state.min_quorum_nodes, nodes)
 
     cond do
       state.partition_policy != :freeze ->
         %{state | quorum_met?: quorum_met?}
 
       state.quorum_met? and not quorum_met? ->
-        freeze_local_keys(state.manager)
+        stopped_count = freeze_local_keys(state.manager)
+        emit(:freeze, %{count: stopped_count}, metadata(state, nodes))
         %{state | quorum_met?: false}
+
+      not state.quorum_met? and quorum_met? ->
+        emit(:unfreeze, %{count: 1}, metadata(state, nodes))
+        maybe_trigger_rebalance(state.manager)
+        %{state | quorum_met?: true}
 
       true ->
         %{state | quorum_met?: quorum_met?}
@@ -89,13 +97,46 @@ defmodule JidoCluster.PartitionMonitor do
   defp evaluate_topology(state), do: state
 
   defp freeze_local_keys(manager) do
-    manager
-    |> Jido.Agent.InstanceManager.stats()
-    |> Map.get(:keys, [])
-    |> Enum.each(fn key ->
-      _ = Jido.Agent.InstanceManager.stop(manager, key)
-    end)
+    if live_transfer?(manager) do
+      manager
+      |> KeyRuntime.local_keys()
+      |> Enum.count(fn key ->
+        KeyRuntime.stop_local(manager, key) == :ok
+      end)
+    else
+      manager
+      |> Jido.Agent.InstanceManager.stats()
+      |> Map.get(:keys, [])
+      |> Enum.count(fn key ->
+        Jido.Agent.InstanceManager.stop(manager, key) == :ok
+      end)
+    end
+  end
 
-    :ok
+  defp live_transfer?(manager) do
+    case InstanceManagerConfig.fetch_cluster(manager) do
+      {:ok, %{handoff_mode: :live_transfer}} -> true
+      _ -> false
+    end
+  end
+
+  defp maybe_trigger_rebalance(manager) do
+    case Process.whereis(Rebalancer.name(manager)) do
+      nil -> :ok
+      _pid -> Rebalancer.trigger(manager)
+    end
+  end
+
+  defp metadata(state, nodes) do
+    %{
+      manager: state.manager,
+      partition_policy: state.partition_policy,
+      min_quorum_nodes: state.min_quorum_nodes,
+      nodes: nodes
+    }
+  end
+
+  defp emit(stage, measurements, metadata) do
+    :telemetry.execute([:jido_cluster, :partition, stage], measurements, metadata)
   end
 end

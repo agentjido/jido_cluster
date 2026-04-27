@@ -3,7 +3,8 @@
 <!-- covers: jido_cluster.bootstrap.getting_started_guide -->
 <!-- covers: jido_cluster.storage.getting_started_storage_choices -->
 
-This guide shows the smallest setup for running keyed Jido agents across multiple Elixir nodes.
+This guide shows the smallest setup for running keyed Jido agents across
+multiple connected Elixir nodes.
 
 ## 1. Add dependency
 
@@ -15,7 +16,10 @@ def deps do
 end
 ```
 
-## 2. Start a distributed manager
+## 2. Start a clustered manager
+
+Add the manager to your application's supervision tree. The deployable unit is
+your OTP release, not a standalone `jido_cluster` service.
 
 ```elixir
 children = [
@@ -36,14 +40,42 @@ signal = Jido.Signal.new!("inc", %{}, source: "/my_app")
 {:ok, agent} = Jido.Cluster.InstanceManager.call(MyApp.ClusterManager, "counter-1", signal)
 ```
 
-## 4. Choose storage intentionally
+## 4. Choose a deployment shape
+
+Phoenix app:
+
+- Use when HTTP, webhooks, WebSockets, LiveView, or admin endpoints trigger
+  agent work.
+- Put `Jido.Cluster.InstanceManager` in the Phoenix supervision tree.
+- Route controller, channel, or LiveView events through the manager by key.
+
+Headless OTP app:
+
+- Use when queues, PubSub, Kafka, SQS, cron, sensors, or internal events trigger
+  agent work.
+- Put `Jido.Cluster.InstanceManager` in the worker release supervision tree.
+- Route consumed events through the manager by key.
+
+Every participating node should run the same manager configuration.
+
+## 5. Choose storage intentionally
 
 - `Jido.Cluster.Storage.ETS`: local dev/test, no shared failover
 - `Jido.Cluster.Storage.Mnesia`: shared, transactional revision checks
 - `Jido.Cluster.Storage.Bedrock`: shared, transactional revision checks
 - `Jido.Cluster.Storage.Postgres`: shared, SQL transaction + row lock checks
 
-## 5. Test distributed behavior
+## 6. Choose live-transfer replication intentionally
+
+Live-transfer mode currently supports synchronous acknowledgement semantics:
+
+- `replication: %{replicas: 0, mode: :sync}` starts only the primary runtime.
+- `replication: %{replicas: 1, mode: :sync}` starts a primary and one standby.
+
+Async replication mode is rejected for live-transfer managers until its
+acknowledgement contract is implemented.
+
+## 7. Test distributed behavior
 
 Use the built-in distributed test patterns under `test/jido_cluster/distributed/` as references for:
 

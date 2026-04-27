@@ -1,20 +1,23 @@
 # Acceptance
 
-Acceptance artifacts capture the higher-level recovery stories that sit above
-the unit and contract tests: real Bedrock-backed handoff, stale-owner release,
-owner-loss failover, restart recovery, and region failover.
+Acceptance artifacts capture the higher-level connected-cluster recovery stories
+that sit above the unit and contract tests: real Bedrock-backed handoff,
+stale-owner release, owner-loss failover, restart recovery, and deployment
+failure drills.
 
 ## Intent
 
-This subject covers the real Bedrock distributed acceptance helper, the
+This subject covers the real Bedrock distributed acceptance helper,
 Bedrock-backed singleton durability tests, the region failover recovery test,
-and the Fly multi-region guide.
+and the Fly connected-cluster failover drill. These artifacts validate one
+connected BEAM cluster with shared storage. They do not define a general
+multi-cluster federation or identity fabric contract.
 
 ```spec-meta
 id: jido_cluster.acceptance
 kind: acceptance
 status: active
-summary: Bedrock-backed and multi-region acceptance stories for clustered singleton recovery.
+summary: Bedrock-backed and connected-cluster acceptance stories for keyed singleton recovery.
 surface:
   - guides/fly-multi-region-failover-demo.md
   - test/support/real_bedrock_cluster_case.ex
@@ -26,12 +29,12 @@ surface:
 
 ```spec-requirements
 - id: jido_cluster.acceptance.fly_failover_guide
-  statement: The Fly multi-region guide shall document a concrete multi-region drill for one logical Jido.Cluster.InstanceManager with shared storage and DNS-based discovery.
+  statement: The Fly failover guide shall document a connected-BEAM drill for one logical Jido.Cluster.InstanceManager with shared storage and DNS-based discovery, while stating that it is not a general multi-cluster federation model.
   priority: must
   stability: evolving
 
 - id: jido_cluster.acceptance.multi_region_operational_shape
-  statement: The multi-region guide shall describe recovery in terms of continued keyed availability, owner continuity, cluster continuity, and migration plus recovery telemetry.
+  statement: The Fly drill shall describe recovery for nodes that may be deployed across regions but still participate in one connected Erlang distribution cluster, using continued keyed availability, owner continuity, cluster continuity, and migration plus recovery telemetry.
   priority: must
   stability: evolving
 

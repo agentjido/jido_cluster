@@ -47,9 +47,12 @@ defmodule Jido.Cluster.Config do
   def new(attrs) when is_list(attrs), do: attrs |> Map.new() |> new()
 
   def new(attrs) when is_map(attrs) do
-    with {:ok, replication} <- Replication.new(Map.get(attrs, :replication)),
+    handoff_mode = Map.get(attrs, :handoff_mode, :hibernate_thaw)
+
+    with {:ok, replication} <- Replication.new(Map.get(attrs, :replication, default_replication(handoff_mode))),
          {:ok, _} <- validate_partition_policy(Map.get(attrs, :partition_policy, :freeze)),
-         {:ok, _} <- validate_handoff_mode(Map.get(attrs, :handoff_mode, :hibernate_thaw)),
+         {:ok, _} <- validate_handoff_mode(handoff_mode),
+         :ok <- validate_replication_compatibility(handoff_mode, replication),
          {:ok, coordination_backend} <-
            validate_coordination_backend(Map.get(attrs, :coordination_backend, :connected_beam)) do
       attrs =
@@ -113,5 +116,19 @@ defmodule Jido.Cluster.Config do
 
   def validate_coordination_backend(other) do
     {:error, Jido.Cluster.Error.validation_error("invalid coordination_backend: #{inspect(other)}")}
+  end
+
+  defp default_replication(:live_transfer), do: %{replicas: 0, mode: :sync, promotion_timeout_ms: 5_000}
+  defp default_replication(_handoff_mode), do: nil
+
+  defp validate_replication_compatibility(:live_transfer, %Replication{mode: :sync}), do: :ok
+  defp validate_replication_compatibility(:hibernate_thaw, %Replication{}), do: :ok
+
+  defp validate_replication_compatibility(:live_transfer, %Replication{} = replication) do
+    {:error,
+     Jido.Cluster.Error.validation_error(
+       "live_transfer requires sync replication mode",
+       %{details: %{replication: replication}}
+     )}
   end
 end

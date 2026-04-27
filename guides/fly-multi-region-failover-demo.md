@@ -1,11 +1,17 @@
-# Fly Multi-Region Failover Demo
+# Fly Connected-Cluster Failover Drill
 
 <!-- covers: jido_cluster.acceptance.fly_failover_guide -->
 <!-- covers: jido_cluster.acceptance.multi_region_operational_shape -->
 
-This guide scaffolds a production-style demo for Jido Cluster runtime stability on Fly.io.
+This guide scaffolds an advanced connected-BEAM/shared-storage drill for Jido
+Cluster runtime stability on Fly.io.
 
-Goal: run one logical `Jido.Cluster.InstanceManager` across multiple Fly regions, then hard-stop one region and demonstrate that keyed agent operations continue from surviving regions.
+Goal: run one logical `Jido.Cluster.InstanceManager` across BEAM nodes that may
+be placed in multiple Fly regions, then hard-stop one region and demonstrate
+that keyed agent operations continue from surviving connected nodes.
+
+This is not a general multi-cluster federation model. All participating nodes
+are still one Erlang distribution cluster and should run the same OTP release.
 
 ## Use Case
 
@@ -17,7 +23,7 @@ Assume an event-processing control plane where each tenant key must have one log
 
 ## Topology
 
-Baseline demo topology:
+Baseline drill topology:
 
 - Regions: `iad`, `ord`, `lax`
 - App machines: `2` per region
@@ -26,7 +32,7 @@ Baseline demo topology:
 
 ## App Scaffold
 
-In your host app supervision tree, configure one distributed manager:
+In your host app supervision tree, configure one clustered manager:
 
 ```elixir
 children = [
@@ -52,15 +58,16 @@ Set distributed release env vars on Fly:
 
 ## Demo Endpoints (Scaffold)
 
-Expose minimal demo endpoints in the host app:
+Expose minimal demo endpoints in the host Phoenix app or equivalent API layer:
 
 - `POST /demo/keys/:id/inc` -> routes `Jido.Cluster.InstanceManager.call/4`
 - `GET /demo/keys/:id/owner` -> returns `owner_node/2`
 - `GET /demo/cluster/stats` -> returns `stats/1`
 
-These three endpoints are enough to show pre-failure health, failover behavior, and post-failure stability.
+These three endpoints are enough to show pre-failure health, failover behavior,
+and post-failure stability.
 
-## Fly Deployment Drill
+## Fly Drill
 
 1. Create and deploy app in three regions.
 2. Warm a stable set of keys via `POST /demo/keys/:id/inc`.
@@ -111,15 +118,17 @@ In this drill, "recovered" means:
 - the next acknowledged call observes the latest persisted state
 - recovery telemetry emits a matching `:start` and `:success` pair for the thaw on the surviving owner
 
-## Features to Add Next
+## Related Hardening Ideas
 
-To strengthen the runtime stability story further:
+To strengthen this connected-cluster runtime story further:
 
-1. Region-aware ownership policy: prefer in-region owners while preserving deterministic fallback.
-2. Failure detector hooks: explicit node health signal integration to shorten failover reaction time.
-3. Fast handoff API: proactive key handoff before planned region drains.
-4. Drill automation: a `mix` task that runs a repeatable chaos drill and emits a pass/fail report.
-5. Stability SLO metrics: p95 recovery latency and migration success rate exported per region.
+1. Failure detector hooks: explicit node health signal integration to shorten failover reaction time.
+2. Fast handoff API: proactive key handoff before planned drains.
+3. Drill automation: a `mix` task that runs a repeatable chaos drill and emits a pass/fail report.
+4. Stability SLO metrics: p95 recovery latency and migration success rate exported per deployment.
+
+Region/AZ-aware ownership, multi-cluster routing, and higher-level identity
+fabric behavior are intentionally out of scope for `jido_cluster`.
 
 ## Local Validation in This Repo
 

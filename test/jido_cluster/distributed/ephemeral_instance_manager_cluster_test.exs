@@ -8,6 +8,43 @@ defmodule JidoCluster.Distributed.EphemeralInstanceManagerClusterTest do
 
   @timeout 10_000
 
+  @doc false
+  def attach_partition_counter(counter_id, stage) do
+    event = [:jido_cluster, :partition, stage]
+    handler_id = {__MODULE__, counter_id, stage}
+
+    :persistent_term.put({:partition_counter, counter_id, stage}, 0)
+
+    :telemetry.attach(
+      handler_id,
+      event,
+      &__MODULE__.increment_partition_counter/4,
+      {counter_id, stage}
+    )
+
+    :ok
+  end
+
+  @doc false
+  def increment_partition_counter(_event, _measurements, _metadata, {id, stage_name}) do
+    key = {:partition_counter, id, stage_name}
+    current = :persistent_term.get(key, 0)
+    :persistent_term.put(key, current + 1)
+    :ok
+  end
+
+  @doc false
+  def read_partition_counter(counter_id, stage) do
+    :persistent_term.get({:partition_counter, counter_id, stage}, 0)
+  end
+
+  @doc false
+  def clear_partition_counter(counter_id, stage) do
+    :persistent_term.erase({:partition_counter, counter_id, stage})
+    :telemetry.detach({__MODULE__, counter_id, stage})
+    :ok
+  end
+
   test "get initializes one primary and one standby runtime", %{cluster: cluster} do
     [n1, n2] = start_nodes(cluster, 2)
     ensure_apps(cluster, [n1, n2])
@@ -84,6 +121,34 @@ defmodule JidoCluster.Distributed.EphemeralInstanceManagerClusterTest do
     assert primary_state.agent.state.count == 1
     assert standby_state.agent.state.count == 1
     assert standby_summary.seq == 1
+  end
+
+  test "replicas zero starts only the primary runtime", %{cluster: cluster} do
+    [n1, n2] = start_nodes(cluster, 2)
+    ensure_apps(cluster, [n1, n2])
+    await_full_mesh(cluster, [n1, n2])
+
+    manager = unique_manager(:ephemeral_replicas_zero)
+    opts = ephemeral_opts(manager, replication: %{replicas: 0, mode: :sync, promotion_timeout_ms: 750})
+    start_managers(cluster, [n1, n2], opts)
+
+    key = "ephemeral-replicas-zero-1"
+    assert {:ok, pid} = ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :get, [manager, key, []])
+    owner = node(pid)
+    standby = Enum.find([n1, n2], &(&1 != owner))
+
+    eventually(fn ->
+      primary_summary = ExUnitCluster.call(cluster, owner, KeyRuntime, :local_summary, [manager, key])
+      standby_summary = ExUnitCluster.call(cluster, standby, KeyRuntime, :local_summary, [manager, key])
+
+      match?(%{role: :primary, standby: nil}, primary_summary) and is_nil(standby_summary)
+    end)
+
+    assert %{total: 1, by_node: by_node} =
+             ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :stats, [manager])
+
+    assert Map.get(by_node, owner, 0) == 1
+    assert Map.get(by_node, standby, 0) == 0
   end
 
   test "cast waits for standby sync before returning", %{cluster: cluster} do
@@ -206,6 +271,84 @@ defmodule JidoCluster.Distributed.EphemeralInstanceManagerClusterTest do
     assert second.state.count == 2
   end
 
+  test "freeze policy stops live-transfer runtimes in a minority partition", %{cluster: cluster} do
+    [n1, n2] = start_nodes(cluster, 2)
+    ensure_apps(cluster, [n1, n2])
+    await_full_mesh(cluster, [n1, n2])
+
+    manager = unique_manager(:ephemeral_freeze_live_transfer)
+
+    opts =
+      ephemeral_opts(manager,
+        min_quorum_nodes: 2,
+        partition_policy: :freeze,
+        replication: %{replicas: 1, mode: :sync, promotion_timeout_ms: 250}
+      )
+
+    start_managers(cluster, [n1, n2], opts)
+
+    key = "ephemeral-freeze-live-transfer-1"
+    signal = Jido.Signal.new!("inc", %{}, source: "/test")
+    counter_id = unique_counter_id(:partition_freeze)
+
+    for node <- [n1, n2], stage <- [:freeze, :unfreeze] do
+      assert :ok = ExUnitCluster.call(cluster, node, __MODULE__, :attach_partition_counter, [counter_id, stage])
+    end
+
+    assert {:ok, first} =
+             ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :call, [manager, key, signal, @timeout])
+
+    assert first.state.count == 1
+
+    eventually(fn ->
+      s1 = ExUnitCluster.call(cluster, n1, KeyRuntime, :local_summary, [manager, key])
+      s2 = ExUnitCluster.call(cluster, n2, KeyRuntime, :local_summary, [manager, key])
+      is_map(s1) and is_map(s2)
+    end)
+
+    disconnect_nodes(cluster, n1, n2)
+    await_topology(cluster, n1, [n1])
+    await_topology(cluster, n2, [n2])
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n1, JidoCluster.InstanceManager, :call, [manager, key, signal, @timeout]) ==
+        {:error, :cluster_unavailable}
+    end)
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n2, JidoCluster.InstanceManager, :call, [manager, key, signal, @timeout]) ==
+        {:error, :cluster_unavailable}
+    end)
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n1, KeyRuntime, :local_keys, [manager]) == []
+    end)
+
+    eventually(fn ->
+      ExUnitCluster.call(cluster, n2, KeyRuntime, :local_keys, [manager]) == []
+    end)
+
+    for node <- [n1, n2] do
+      assert ExUnitCluster.call(cluster, node, __MODULE__, :read_partition_counter, [counter_id, :freeze]) >= 1
+    end
+
+    reconnect_nodes(cluster, n1, n2)
+    await_full_mesh(cluster, [n1, n2])
+
+    for node <- [n1, n2] do
+      eventually(fn ->
+        ExUnitCluster.call(cluster, node, __MODULE__, :read_partition_counter, [counter_id, :unfreeze]) >= 1
+      end)
+    end
+
+    assert {:ok, _after_heal} =
+             ExUnitCluster.call(cluster, n2, JidoCluster.InstanceManager, :call, [manager, key, signal, @timeout])
+
+    for node <- [n1, n2], stage <- [:freeze, :unfreeze] do
+      assert :ok = ExUnitCluster.call(cluster, node, __MODULE__, :clear_partition_counter, [counter_id, stage])
+    end
+  end
+
   test "soft-owner split promotes standby and converges back to one primary on heal", %{cluster: cluster} do
     [n1, n2] = start_nodes(cluster, 2)
     ensure_apps(cluster, [n1, n2])
@@ -274,8 +417,8 @@ defmodule JidoCluster.Distributed.EphemeralInstanceManagerClusterTest do
     assert Map.get(by_node, healed_standby, 0) == 0
   end
 
-  defp ephemeral_opts(manager) do
-    [
+  defp ephemeral_opts(manager, overrides \\ []) do
+    base = [
       name: manager,
       agent: JidoCluster.Test.CounterAgent,
       storage: nil,
@@ -288,6 +431,8 @@ defmodule JidoCluster.Distributed.EphemeralInstanceManagerClusterTest do
       coordination_backend: :connected_beam,
       replication: %{replicas: 1, mode: :sync, promotion_timeout_ms: 750}
     ]
+
+    Keyword.merge(base, overrides)
   end
 
   defp ensure_apps(cluster, nodes) do
@@ -315,6 +460,10 @@ defmodule JidoCluster.Distributed.EphemeralInstanceManagerClusterTest do
 
   defp unique_manager(prefix) do
     :"manager_#{prefix}_#{System.unique_integer([:positive])}"
+  end
+
+  defp unique_counter_id(prefix) do
+    :"#{prefix}_#{System.unique_integer([:positive])}"
   end
 
   defp pick_key_owned_by(manager, nodes, owner) do

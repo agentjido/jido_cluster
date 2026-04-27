@@ -3,7 +3,7 @@ defmodule JidoCluster.MixProject do
 
   @version "0.1.0"
   @source_url "https://github.com/agentjido/jido_cluster"
-  @description "Distributed Jido instance management and storage adapters for multi-node Elixir clusters."
+  @description "Clustered keyed singleton runtime and storage adapters for Jido agents."
 
   def project do
     [
@@ -115,7 +115,12 @@ defmodule JidoCluster.MixProject do
   end
 
   defp bedrock_dep do
-    local_dep_or_hex(:bedrock, "../bedrock", "~> 0.5", optional: true)
+    if System.get_env("JIDO_CLUSTER_USE_LOCAL_PATH_DEPS") in ["1", "true"] and
+         File.dir?(Path.expand("../bedrock", __DIR__)) do
+      {:bedrock, path: "../bedrock", optional: true}
+    else
+      {:bedrock, github: "bedrock-kv/bedrock", branch: "main", optional: true}
+    end
   end
 
   # Keep the repo standalone by default, but allow explicit sibling checkouts when needed.

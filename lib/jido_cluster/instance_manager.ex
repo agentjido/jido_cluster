@@ -13,6 +13,7 @@ defmodule JidoCluster.InstanceManager do
   alias JidoCluster.Internal.InstanceManagerConfig
   alias JidoCluster.Internal.Remote
   alias JidoCluster.KeyRuntime
+  alias JidoCluster.LeaseRenewer
   alias JidoCluster.LeaseStore
   alias JidoCluster.PartitionMonitor
   alias JidoCluster.Rebalancer
@@ -76,7 +77,9 @@ defmodule JidoCluster.InstanceManager do
         ]
       else
         local_manager_opts = extract_local_manager_opts(opts, manager_config)
+
         [Jido.Agent.InstanceManager.child_spec(local_manager_opts)]
+        |> maybe_add_lease_renewer(manager, cluster_config)
       end
 
     children = maybe_add_cluster_formation(children, opts)
@@ -179,6 +182,7 @@ defmodule JidoCluster.InstanceManager do
         with :ok <- ensure_local_lease(manager, key),
              {:ok, pid} <- Jido.Agent.InstanceManager.get(manager, key, []),
              {:ok, agent} <- Jido.AgentServer.call(pid, signal, timeout),
+             :ok <- ensure_local_lease(manager, key),
              :ok <- persist_acknowledged_state(manager, key, agent) do
           {:ok, agent}
         end
@@ -342,6 +346,12 @@ defmodule JidoCluster.InstanceManager do
 
   defp maybe_add_partition_monitor(children, _manager, _cluster_config), do: children
 
+  defp maybe_add_lease_renewer(children, manager, %{coordination_backend: {:bedrock_lease, %LeaseBackend{} = backend}}) do
+    children ++ [LeaseRenewer.child_spec(manager: manager, backend: backend)]
+  end
+
+  defp maybe_add_lease_renewer(children, _manager, _cluster_config), do: children
+
   defp maybe_add_rebalancer(children, _opts, _manager, %{coordination_backend: {:bedrock_lease, _backend}}),
     do: children
 
@@ -403,15 +413,21 @@ defmodule JidoCluster.InstanceManager do
   end
 
   defp extract_cluster_config(opts) do
+    handoff_mode = validate_handoff_mode(Keyword.get(opts, :handoff_mode, :hibernate_thaw))
+    replication = validate_replication(Keyword.get(opts, :replication, default_replication(handoff_mode)))
+    validate_replication_compatibility!(handoff_mode, replication)
+
     %{
       partition_policy: validate_partition_policy(Keyword.get(opts, :partition_policy, :freeze)),
       min_quorum_nodes: validate_min_quorum_nodes(Keyword.get(opts, :min_quorum_nodes, 1)),
-      handoff_mode: validate_handoff_mode(Keyword.get(opts, :handoff_mode, :hibernate_thaw)),
+      handoff_mode: handoff_mode,
       coordination_backend: validate_coordination_backend(Keyword.get(opts, :coordination_backend, :connected_beam)),
-      replication:
-        validate_replication(Keyword.get(opts, :replication, %{replicas: 0, mode: :async, promotion_timeout_ms: 5_000}))
+      replication: replication
     }
   end
+
+  defp default_replication(:live_transfer), do: %{replicas: 0, mode: :sync, promotion_timeout_ms: 5_000}
+  defp default_replication(_handoff_mode), do: %{replicas: 0, mode: :async, promotion_timeout_ms: 5_000}
 
   defp lookup_any_node(manager, key) do
     Enum.find_value(Topology.connected_nodes(), :error, fn node ->
@@ -619,7 +635,7 @@ defmodule JidoCluster.InstanceManager do
 
   defp validate_handoff_mode(other) do
     raise ArgumentError,
-          "Invalid :handoff_mode for JidoCluster.InstanceManager; expected :hibernate_thaw, got: #{inspect(other)}"
+          "Invalid :handoff_mode for JidoCluster.InstanceManager; expected :hibernate_thaw or :live_transfer, got: #{inspect(other)}"
   end
 
   defp validate_coordination_backend(:connected_beam), do: :connected_beam
@@ -649,6 +665,14 @@ defmodule JidoCluster.InstanceManager do
         raise ArgumentError,
               "Invalid :replication for JidoCluster.InstanceManager; expected %{replicas: 0|1, mode: :async|:sync, promotion_timeout_ms: positive_integer}, got: #{inspect(replication)}"
     end
+  end
+
+  defp validate_replication_compatibility!(:live_transfer, %{mode: :sync}), do: :ok
+  defp validate_replication_compatibility!(:hibernate_thaw, _replication), do: :ok
+
+  defp validate_replication_compatibility!(:live_transfer, replication) do
+    raise ArgumentError,
+          "Invalid :replication for live_transfer; expected sync replication mode, got: #{inspect(replication)}"
   end
 
   defp node_for_lookup_result({:ok, pid}) when is_pid(pid), do: {:ok, node(pid)}
