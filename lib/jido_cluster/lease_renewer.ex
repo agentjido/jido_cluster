@@ -87,7 +87,6 @@ defmodule JidoCluster.LeaseRenewer do
     case Jido.Agent.InstanceManager.stop(manager, key) do
       :ok -> :ok
       {:error, :not_found} -> :ok
-      _other -> :ok
     end
 
     :telemetry.execute(

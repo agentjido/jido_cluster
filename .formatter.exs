@@ -1,6 +1,6 @@
 [
   inputs: [
-    "{mix,.formatter,.credo}.exs",
+    "{mix,.formatter,.credo,.doctor}.exs",
     "{config,lib,test}/**/*.{ex,exs}"
   ],
   line_length: 120

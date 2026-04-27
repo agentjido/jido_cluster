@@ -26,9 +26,15 @@ defmodule Jido.Cluster.Replication do
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 
+  @doc """
+  Returns the validation schema for replication options.
+  """
   @spec schema() :: Zoi.schema()
   def schema, do: @schema
 
+  @doc """
+  Builds a validated replication policy.
+  """
   @spec new(keyword() | map() | nil) :: {:ok, t()} | {:error, term()}
   def new(nil), do: Zoi.parse(@schema, %{})
   def new(attrs) when is_list(attrs), do: attrs |> Map.new() |> new()
@@ -44,6 +50,9 @@ defmodule Jido.Cluster.Replication do
   def new(_),
     do: {:error, Jido.Cluster.Error.validation_error("Replication requires a keyword list or map")}
 
+  @doc """
+  Builds a validated replication policy or raises a validation error.
+  """
   @spec new!(keyword() | map() | nil) :: t()
   def new!(attrs) do
     case new(attrs) do
@@ -52,6 +61,9 @@ defmodule Jido.Cluster.Replication do
     end
   end
 
+  @doc """
+  Validates the configured replication mode.
+  """
   @spec validate_mode(term()) :: {:ok, :async | :sync} | {:error, term()}
   def validate_mode(:async), do: {:ok, :async}
   def validate_mode(:sync), do: {:ok, :sync}

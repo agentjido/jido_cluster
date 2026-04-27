@@ -22,7 +22,8 @@ jobs:
         mix compile --warnings-as-errors &&
         mix credo --min-priority higher &&
         mix spec.check --no-run-commands &&
-        mix dialyzer
+        mix dialyzer &&
+        mix doctor --raise
       validate_hex_package: false
 
   test:
@@ -32,3 +33,14 @@ jobs:
       otp_versions: '["27", "28"]'
       elixir_versions: '["1.18", "1.19"]'
       test_command: mix test
+
+  real_bedrock:
+    name: Real Bedrock
+    uses: agentjido/github-actions/.github/workflows/elixir-test.yml@v3
+    with:
+      otp_versions: '["28"]'
+      elixir_versions: '["1.19"]'
+      test_command: >-
+        mix test --include real_bedrock
+        test/jido_cluster/distributed/bedrock_acceptance_test.exs
+        test/jido_cluster/distributed/disconnected_island_runtime_test.exs

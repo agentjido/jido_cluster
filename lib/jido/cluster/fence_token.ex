@@ -23,9 +23,15 @@ defmodule Jido.Cluster.FenceToken do
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 
+  @doc """
+  Returns the validation schema for a fence token.
+  """
   @spec schema() :: Zoi.schema()
   def schema, do: @schema
 
+  @doc """
+  Builds a validated fence token.
+  """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, term()}
   def new(attrs) when is_list(attrs), do: attrs |> Map.new() |> new()
   def new(attrs) when is_map(attrs), do: Zoi.parse(@schema, attrs)
@@ -33,6 +39,9 @@ defmodule Jido.Cluster.FenceToken do
   def new(_),
     do: {:error, Jido.Cluster.Error.validation_error("Fence token requires a keyword list or map")}
 
+  @doc """
+  Builds a validated fence token or raises a validation error.
+  """
   @spec new!(keyword() | map()) :: t()
   def new!(attrs) do
     case new(attrs) do

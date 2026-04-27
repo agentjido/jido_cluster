@@ -31,9 +31,15 @@ defmodule Jido.Cluster.Ownership do
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 
+  @doc """
+  Returns the validation schema for an ownership record.
+  """
   @spec schema() :: Zoi.schema()
   def schema, do: @schema
 
+  @doc """
+  Builds a validated ownership record.
+  """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, term()}
   def new(attrs) when is_list(attrs), do: attrs |> Map.new() |> new()
 
@@ -47,6 +53,9 @@ defmodule Jido.Cluster.Ownership do
   def new(_),
     do: {:error, Jido.Cluster.Error.validation_error("Ownership requires a keyword list or map")}
 
+  @doc """
+  Builds a validated ownership record or raises a validation error.
+  """
   @spec new!(keyword() | map()) :: t()
   def new!(attrs) do
     case new(attrs) do
@@ -55,6 +64,9 @@ defmodule Jido.Cluster.Ownership do
     end
   end
 
+  @doc """
+  Validates a local runtime role.
+  """
   @spec validate_role(term()) :: {:ok, :primary | :standby} | {:error, term()}
   def validate_role(:primary), do: {:ok, :primary}
   def validate_role(:standby), do: {:ok, :standby}
@@ -63,6 +75,9 @@ defmodule Jido.Cluster.Ownership do
     {:error, Jido.Cluster.Error.validation_error("invalid ownership role: #{inspect(other)}")}
   end
 
+  @doc """
+  Validates an ownership lifecycle status.
+  """
   @spec validate_status(term()) ::
           {:ok, :starting | :owned | :standby | :promoting | :handoff | :stopped}
           | {:error, term()}

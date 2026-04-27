@@ -27,9 +27,15 @@ defmodule Jido.Cluster.LeaseClaim do
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 
+  @doc """
+  Returns the validation schema for a lease acquisition request.
+  """
   @spec schema() :: Zoi.schema()
   def schema, do: @schema
 
+  @doc """
+  Builds a validated lease acquisition request.
+  """
   @spec new(keyword() | map()) :: {:ok, t()} | {:error, term()}
   def new(attrs) when is_list(attrs), do: attrs |> Map.new() |> new()
 
@@ -43,6 +49,9 @@ defmodule Jido.Cluster.LeaseClaim do
   def new(_),
     do: {:error, Jido.Cluster.Error.validation_error("Lease claim requires a keyword list or map")}
 
+  @doc """
+  Builds a validated lease acquisition request or raises a validation error.
+  """
   @spec new!(keyword() | map()) :: t()
   def new!(attrs) do
     case new(attrs) do
