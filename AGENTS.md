@@ -29,3 +29,7 @@ Use Conventional Commits, for example:
 - `feat(instance_manager): add keyed cross-node call wrappers`
 - `fix(rebalancer): avoid migration on non-shared backends`
 - `test(cluster): add singleton race coverage across nodes`
+
+## Release Hygiene
+
+- Do not modify `CHANGELOG.md`; release notes are generated from Git history during release, so keep changes focused on proper Conventional Commits.
