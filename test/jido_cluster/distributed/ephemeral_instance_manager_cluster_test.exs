@@ -329,7 +329,9 @@ defmodule JidoCluster.Distributed.EphemeralInstanceManagerClusterTest do
     end)
 
     for node <- [n1, n2] do
-      assert ExUnitCluster.call(cluster, node, __MODULE__, :read_partition_counter, [counter_id, :freeze]) >= 1
+      eventually(fn ->
+        ExUnitCluster.call(cluster, node, __MODULE__, :read_partition_counter, [counter_id, :freeze]) >= 1
+      end)
     end
 
     reconnect_nodes(cluster, n1, n2)
