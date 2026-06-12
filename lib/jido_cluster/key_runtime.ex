@@ -918,8 +918,6 @@ defmodule JidoCluster.KeyRuntime do
     end
   end
 
-  defp maybe_push_primary_state(state, _peer, _desired_primary, _desired_standby), do: state
-
   defp promote_self(state) do
     state
     |> clear_promotion_timer()
