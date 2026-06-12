@@ -322,15 +322,15 @@ defmodule JidoCluster.Storage.Postgres do
 
   defp fetch_repo(opts) do
     case Keyword.get(opts, :repo) do
+      nil ->
+        {:error, :missing_repo}
+
       repo when is_atom(repo) ->
         if Code.ensure_loaded?(repo) do
           {:ok, repo}
         else
           {:error, {:repo_not_loaded, repo}}
         end
-
-      nil ->
-        {:error, :missing_repo}
 
       other ->
         {:error, {:invalid_repo, other}}
