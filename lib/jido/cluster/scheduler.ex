@@ -10,7 +10,11 @@ defmodule Jido.Cluster.Scheduler do
   Host inventory is application configuration, filtered by the current connected
   view. A lost source produces `:uncertain`; spare capacity is not permission to
   replace an unreachable writer. There is no durable authority, global capacity
-  reservation, automatic rebalance, or operation-owner restart guarantee.
+  reservation, automatic rebalance, or automatic coordinator replacement.
+
+  A supervised ownership process excludes competing connected coordinators and
+  stops core resources after this process exits. Restart reads effective core
+  placements; drain requests and operation state are not durable.
 
   Start after the named Jido instance. `:hosts` requires node, labels, capacity,
   and available fields. `:poll_interval` defaults to 250 ms, `:timeout` to 5000 ms,
@@ -18,7 +22,7 @@ defmodule Jido.Cluster.Scheduler do
   uncertain result requires an explicit retry; there is no automatic retry loop.
   """
   use GenServer
-  alias Jido.Cluster.Scheduler.{Operation, Planner}
+  alias Jido.Cluster.Scheduler.{Operation, Owner, Planner}
   alias Jido.Topology.Controller
 
   @doc "Returns a temporary child specification scoped to the Topology ID."
@@ -71,7 +75,17 @@ defmodule Jido.Cluster.Scheduler do
   @impl true
   def init(state) do
     Process.flag(:trap_exit, true)
-    {:ok, state, {:continue, :schedule}}
+
+    case Owner.start(self(), state) do
+      {:ok, owner, controllers} ->
+        state =
+          Map.merge(state, %{owner: owner, owner_monitor: Process.monitor(owner), controller_supervisor: controllers})
+
+        {:ok, state, {:continue, :schedule}}
+
+      {:error, reason} ->
+        {:stop, reason}
+    end
   end
 
   @impl true
@@ -88,14 +102,18 @@ defmodule Jido.Cluster.Scheduler do
   def handle_call({:agent, _key}, _from, %{controller: nil} = state), do: {:reply, nil, state}
 
   def handle_call({:agent, key}, _from, state) do
-    {:reply, Controller.whereis_agent(state.controller, key), state}
+    controller = Controller.whereis(state.jido, state.instance.id)
+    agent = if controller, do: Controller.whereis_agent(controller, key)
+    {:reply, agent, %{state | controller: controller}}
   catch
-    kind, reason -> {:reply, nil, %{state | status: :uncertain, error: {:controller_unavailable, kind, reason}}}
+    _kind, _reason -> {:reply, nil, state}
   end
 
   def handle_call(:stop, _from, state) do
-    result = cleanup(state)
-    {:stop, :normal, result, %{state | cleaned: true}}
+    case cleanup(state) do
+      :ok -> {:stop, :normal, :ok, %{state | cleaned: true}}
+      error -> {:reply, error, %{state | status: :uncertain, error: error, task: nil}}
+    end
   end
 
   def handle_call(_request, _from, %{task: task} = state) when not is_nil(task),
@@ -125,12 +143,29 @@ defmodule Jido.Cluster.Scheduler do
 
   @impl true
   def handle_info({ref, result}, %{task: %{ref: ref}} = state) do
-    Process.demonitor(ref, [:flush])
     {:noreply, state |> Map.put(:task, nil) |> finish(result) |> poll_later()}
   end
 
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{task: %{ref: ref}} = state),
     do: {:noreply, state |> Map.put(:task, nil) |> finish({:error, {:operation_uncertain, reason}}) |> poll_later()}
+
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{owner_monitor: ref} = state),
+    do: {:stop, {:owner_down, reason}, state}
+
+  def handle_info({:controller_down, _reason}, %{task: nil, status: :ready} = state),
+    do: {:noreply, poll_later(%{state | status: :recovering, controller: nil})}
+
+  def handle_info({:controller_down, _reason}, %{task: nil, status: :recovering} = state),
+    do: {:noreply, state}
+
+  def handle_info({:controller_down, reason}, %{task: nil} = state),
+    do: {:noreply, poll_later(%{state | status: :uncertain, controller: nil, error: {:controller_down, reason}})}
+
+  def handle_info({:controller_restarted, controller}, state),
+    do: {:noreply, %{state | controller: controller}}
+
+  def handle_info({:controller_restart_failed, reason}, state),
+    do: {:noreply, poll_later(%{state | status: :uncertain, error: {:controller_restart_failed, reason}})}
 
   def handle_info({:poll, token}, %{task: nil, poll_token: token} = state), do: {:noreply, check(state)}
   def handle_info({:poll, _token}, state), do: {:noreply, state}
@@ -141,8 +176,11 @@ defmodule Jido.Cluster.Scheduler do
   def terminate(_reason, state), do: cleanup(state)
 
   defp cleanup(state) do
-    if state.task, do: Task.shutdown(state.task, :brutal_kill)
-    Operation.stop_controller(state.jido, state.instance.id, 10_000)
+    if Process.alive?(state.owner),
+      do: Owner.stop(state.owner),
+      else: Operation.stop_controller(state.jido, state.instance.id, 10_000, state.controller_supervisor)
+  catch
+    kind, reason -> {:error, {:cleanup_uncertain, kind, reason}}
   end
 
   defp config(opts) do
@@ -193,6 +231,8 @@ defmodule Jido.Cluster.Scheduler do
   end
 
   defp schedule(state) do
+    state = refresh(state)
+
     with :ok <- reachable(state),
          {:ok, desired} <- Planner.plan(state.instance, live_hosts(state), state.draining, state.placements) do
       launch(state, desired)
@@ -205,8 +245,7 @@ defmodule Jido.Cluster.Scheduler do
   defp launch(state, desired) do
     if state.poll_timer, do: Process.cancel_timer(state.poll_timer)
 
-    task =
-      Task.Supervisor.async_nolink(Jido.Cluster.OperationSupervisor, fn -> Operation.apply_plan(state, desired) end)
+    task = %{ref: Owner.run(state.owner, state, desired)}
 
     %{
       state
@@ -236,22 +275,67 @@ defmodule Jido.Cluster.Scheduler do
     do: %{state | status: :blocked, error: reason, desired: %{}}
 
   defp finish(state, {:error, reason}) do
-    controller = Controller.whereis(state.jido, state.instance.id)
-    %{state | controller: controller, status: :uncertain, error: reason}
+    state = refresh(state)
+    %{state | status: :uncertain, error: reason}
   end
 
   defp check(%{status: :ready} = state) do
-    with :ok <- reachable(state),
-         %{status: :ready} <- Controller.status(state.controller) do
+    state = refresh(state)
+
+    with controller when not is_nil(controller) <- state.controller,
+         :ok <- reachable(state),
+         %{status: :ready} <- Controller.status(controller) do
       poll_later(state)
     else
+      nil -> poll_later(%{state | status: :recovering})
       _ -> schedule(%{state | repairs: state.repairs + 1})
     end
   catch
-    kind, reason -> poll_later(%{state | status: :uncertain, error: {:controller_unavailable, kind, reason}})
+    _kind, _reason -> poll_later(%{state | status: :recovering})
+  end
+
+  defp check(%{status: :recovering} = state) do
+    state = refresh(state)
+
+    if state.controller do
+      case Controller.status(state.controller) do
+        %{status: :ready} ->
+          finish_recovery(state)
+
+        %{status: :degraded, errors: errors} ->
+          poll_later(%{state | status: :uncertain, error: errors})
+
+        _status ->
+          poll_later(state)
+      end
+    else
+      poll_later(state)
+    end
+  catch
+    _kind, _reason -> poll_later(state)
   end
 
   defp check(state), do: poll_later(state)
+
+  defp finish_recovery(state) do
+    with :ok <- reachable(state),
+         {:ok, desired} <- Planner.plan(state.instance, live_hosts(state), state.draining, state.placements),
+         true <- desired == state.placements do
+      poll_later(finish(state, {:ok, state.controller, state.placements}))
+    else
+      {:error, reason} -> poll_later(%{state | status: :uncertain, error: reason})
+      false -> poll_later(%{state | status: :uncertain, error: :placement_changed})
+    end
+  end
+
+  defp refresh(state) do
+    case Controller.whereis(state.jido, state.instance.id) do
+      nil -> %{state | controller: nil}
+      controller -> %{state | controller: controller, placements: Operation.placements(controller, state.instance)}
+    end
+  catch
+    _kind, _reason -> %{state | controller: nil}
+  end
 
   defp reachable(state) do
     missing = state.placements |> Map.values() |> Enum.uniq() |> Enum.reject(&(&1 in connected())) |> Enum.sort()

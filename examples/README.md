@@ -15,6 +15,8 @@ These examples are living documentation. Definitions live here. Runnable test ca
 | 03 Placement | [03_03 Drain](03_placement/03_03_drain/README.md) | Move a worker from a connected draining node |
 | 03 Placement | [03_04 Worker recovery](03_placement/03_04_worker_recovery/README.md) | Give bounded repair one lifecycle owner |
 | 03 Placement | [03_05 Host loss](03_placement/03_05_host_loss/README.md) | Keep an unreachable source visibly uncertain |
+| 03 Placement | [03_06 Coordinator ownership](03_placement/03_06_coordinator/README.md) | Exclude competing connected coordinators and clean up after exit |
+| 03 Placement | [03_07 Placement restart](03_placement/03_07_restart/README.md) | Report restored placement and observe Controller replacement |
 
 Example source code compiles in `dev` and `test`. It does not compile in `prod`. Tests mirror each numbered folder under `test/examples/` and use only the `:example` tag. The normal test command excludes this tag.
 

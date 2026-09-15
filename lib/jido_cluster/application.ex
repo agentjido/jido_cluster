@@ -6,7 +6,7 @@ defmodule JidoCluster.Application do
   def start(_type, _args) do
     children = [
       %{id: Jido.Cluster.PG, start: {:pg, :start_link, [Jido.Cluster.PG]}},
-      {Task.Supervisor, name: Jido.Cluster.OperationSupervisor},
+      {DynamicSupervisor, name: Jido.Cluster.OwnerSupervisor, strategy: :one_for_one},
       {DynamicSupervisor, name: Jido.Cluster.ManagerSupervisor, strategy: :one_for_one}
     ]
 

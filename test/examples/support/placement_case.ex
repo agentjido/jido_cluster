@@ -33,18 +33,21 @@ defmodule JidoCluster.Examples.Support.PlacementCase do
   def host(worker, labels \\ ["compute"], capacity \\ 1),
     do: %{node: worker, labels: labels, capacity: capacity, available: true}
 
-  def start_scheduler(c, module, hosts) do
+  def scheduler_opts(c, module, hosts),
+    do: [jido: c.jido, topology: module.new!(id: c.id), hosts: hosts, poll_interval: 50]
+
+  def start_scheduler(c, module, hosts, control \\ nil) do
     assert {:ok, scheduler} =
-             cluster_call(c.cluster, hd(c.cluster.nodes), DynamicSupervisor, :start_child, [
+             cluster_call(c.cluster, control || hd(c.cluster.nodes), DynamicSupervisor, :start_child, [
                Jido.Cluster.ManagerSupervisor,
-               {Jido.Cluster.Scheduler, jido: c.jido, topology: module.new!(id: c.id), hosts: hosts, poll_interval: 50}
+               {Jido.Cluster.Scheduler, scheduler_opts(c, module, hosts)}
              ])
 
     scheduler
   end
 
   def scheduler_call(c, scheduler, function, args \\ []),
-    do: cluster_call(c.cluster, hd(c.cluster.nodes), Jido.Cluster.Scheduler, function, [scheduler | args])
+    do: cluster_call(c.cluster, node(scheduler), Jido.Cluster.Scheduler, function, [scheduler | args])
 
   def ready(c, scheduler) do
     eventually(fn -> scheduler_call(c, scheduler, :status).status == :ready end, timeout: 8_000)
@@ -53,6 +56,6 @@ defmodule JidoCluster.Examples.Support.PlacementCase do
 
   def stop_scheduler(c, scheduler) do
     assert :ok = scheduler_call(c, scheduler, :stop)
-    refute cluster_call(c.cluster, hd(c.cluster.nodes), Process, :alive?, [scheduler])
+    refute cluster_call(c.cluster, node(scheduler), Process, :alive?, [scheduler])
   end
 end

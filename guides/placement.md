@@ -36,6 +36,7 @@ Start and update calls do not acknowledge readiness. Observe `status: :ready` be
 
 - `:blocked` means the configured requirements cannot be admitted or a selected host has a different namespace. Initial blocked admission starts no workers.
 - `:placing` means one serialized operation is active. Current and desired slots are retained conservatively during movement.
+- `:recovering` means an idle core Controller exited. Its replacement waits for ownership cleanup and core readiness.
 - `:ready` means the core Controller reported readiness for the selected plan.
 - `:uncertain` means source reachability or an operation result needs reconciliation. The runtime pauses automatic work. Planned slots are retained because an activation can already exist.
 
@@ -47,6 +48,10 @@ Only root singleton Agents are admitted. Groups, includes, and Plugin-added Agen
 
 Moves retain source and target slot claims until readiness. A packed swap without spare target slots is rejected with `{:transition_capacity, node}` before any move. The first slice does not plan a multi-stage evacuation to free those slots.
 
-Scheduler ownership is local and temporary. Separate Schedulers do not share slot budgets. Operation state is not durable, and restart after accepted core placement targets is not covered. There is no global drain, automatic rebalance, dynamic provider, or durable writer lease.
+A supervised ownership process claims one connected coordinator per namespace and Topology ID. Competing control nodes are rejected before they start a Controller. Scheduler exit cancels its operation tasks and stops its core resources. The ownership claim is released after successful cleanup. Failed or uncertain cleanup retains the claim; normal `stop/1` reports the error. This is connected coordination, with no durable lease or partition protection.
+
+An idle core Controller exit waits for the public ownership cleanup event and monitors its child process exit before one replacement starts. Its original selected definition is retained for core target compatibility. The Scheduler resolves the current Controller PID and reads effective accepted nodes through public core APIs. It reports `:ready` only after replacement readiness. Controller exit during an operation can require explicit reconciliation; Agent Signals are not replayed.
+
+After Scheduler restart, eligible saved core placements are retained. Use the same Topology ID, input, and original inventory so the initial selected definition remains compatible with the accepted core target. Restart with a changed initial inventory is not covered. Drain intent and operation state are not durable. Separate Topologies do not share slot budgets. There is no global drain, automatic rebalance, dynamic provider, or durable writer lease.
 
 Read the [placement examples](../examples/03_placement/README.md), [design lessons](../docs/design/01_package-purpose/lessons.md), and [test guide](testing.md).

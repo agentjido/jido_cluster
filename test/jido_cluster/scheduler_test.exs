@@ -58,4 +58,18 @@ defmodule JidoCluster.SchedulerTest do
     assert {:ok, next} = Scheduler.start_link(opts)
     assert :ok = Scheduler.stop(next)
   end
+
+  test "supervisor shutdown cleans up a ready coordinator without a supervisor call cycle", %{opts: opts, jido: jido} do
+    hosts = [%{node: node(), labels: ["compute"], capacity: 1, available: true}]
+    scheduler = start_supervised!({Scheduler, Keyword.put(opts, :hosts, hosts)})
+    eventually(fn -> Scheduler.status(scheduler).status == :ready end)
+    worker = Scheduler.whereis_agent(scheduler, :worker)
+    controller = Controller.whereis(jido, "scheduler")
+    assert :ok = stop_supervised({Scheduler, "scheduler"})
+    refute Process.alive?(scheduler)
+    refute Process.alive?(controller)
+    refute Process.alive?(worker)
+    assert {:ok, next} = Scheduler.start_link(Keyword.put(opts, :hosts, hosts))
+    assert :ok = Scheduler.stop(next)
+  end
 end

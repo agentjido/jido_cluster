@@ -69,6 +69,14 @@ The [03 Placement examples](../../../examples/03_placement/README.md) now prove 
 | Automatic connected-host recovery | Host-loss status is uncertain, with no replacement writer | Confirmed source retirement and protected-write authority |
 | Drain a live node | Per-Scheduler drain selects and applies a cooperative move | Global drain and interrupted-operation reconciliation |
 | Capacity admission and failed-start cleanup | Complete slot admission; namespace rejection releases planned slots before startup | Global reservations and partial-activation failure reconciliation |
-| Reconcile an uncertain operation | Source loss remains visible after inventory changes | Durable operation identity and operation-owner restart |
+| Reconcile an uncertain operation | Source loss remains visible after inventory changes | Durable operation identity and interrupted-operation reconciliation |
 
 Worker exit has its own example: the Scheduler requests one bounded core repair pass and retains the Ref and checkpoint. This is different from host replacement. Read the [implementation alignment](alignment.md) and [guide](../../../guides/placement.md) for the supported limits.
+
+## Coordinator lifecycle corrections
+
+Regression examples now cover [connected coordinator ownership](../../../examples/03_placement/03_06_coordinator/README.md) and [accepted placement restart](../../../examples/03_placement/03_07_restart/README.md). They address three faults found in the initial Scheduler: competing control nodes could share one worker, killing the Scheduler left its manual Controller alive, and restart after drain reported the old selected node while core restored on the target.
+
+A supervised owner now holds the connected claim until cleanup settles and owns the operation tasks and Controller supervision. Operations read effective core placements before planning and after readiness. Idle Controller exit waits for cleanup before replacement; the Scheduler resolves its current PID. Normal supervisor shutdown has a unit regression test to exclude supervisor call cycles during cleanup.
+
+This closes connected process lifecycle faults. It does not establish durable authority or global capacity. Interrupted multi-worker drain, changed inventory at restart, durable drain intent, and cleanup-event correlation across namespace boundaries still need dedicated contracts and proofs.

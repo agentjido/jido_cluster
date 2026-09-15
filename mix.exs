@@ -40,6 +40,8 @@ defmodule JidoCluster.MixProject do
           {"examples/03_placement/03_03_drain/README.md", filename: "03-03-drain"},
           {"examples/03_placement/03_04_worker_recovery/README.md", filename: "03-04-worker-recovery"},
           {"examples/03_placement/03_05_host_loss/README.md", filename: "03-05-host-loss"},
+          {"examples/03_placement/03_06_coordinator/README.md", filename: "03-06-coordinator"},
+          {"examples/03_placement/03_07_restart/README.md", filename: "03-07-restart"},
           {"docs/design/01_package-purpose/README.md", filename: "design-01_package-purpose-readme"},
           {"docs/design/01_package-purpose/alignment.md", filename: "design-01_package-purpose-alignment"},
           {"docs/design/01_package-purpose/design.md", filename: "design-01_package-purpose-design"},

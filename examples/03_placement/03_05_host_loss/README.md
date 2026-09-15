@@ -22,4 +22,4 @@ The test knows that it stopped a peer. The production Scheduler sees only an unr
 
 This proves conservative behavior after confirmed test host exit. It is not an asymmetric partition test and does not provide protected-write fencing, automatic host replacement, or an authority service. The RAM checkpoint alone cannot grant a new writer authority.
 
-Previous: [Worker recovery](../03_04_worker_recovery/README.md). Return to [03 Placement](../README.md).
+Previous: [Worker recovery](../03_04_worker_recovery/README.md). Next: [Coordinator ownership](../03_06_coordinator/README.md).
