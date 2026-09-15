@@ -24,6 +24,13 @@
 - Prefer tagged tuple returns (`{:ok, value}` / `{:error, reason}`).
 - Keep distributed behavior deterministic and testable.
 
+## Design documents
+
+- Start with `docs/design/README.md` for purpose and ownership decisions.
+- Mark proposals, accepted decisions, and implemented evidence separately.
+- Keep distributed identity, location, and write authority separate.
+- Do not treat issue ideas or core reference requirements as implemented features.
+
 ## Testing
 
 - Unit tests should mirror `lib/` structure.

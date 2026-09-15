@@ -84,3 +84,5 @@ steps. The previous V2 implementation and tests are retained under `archive/v2/`
 They are not compiled, tested, or packaged as current V3 code.
 
 See the [living examples](examples/README.md) and [local node testing guide](guides/testing.md).
+
+The [design folder](docs/design/README.md) defines the proposed package purpose and its boundary with core V3. Proposals are separate from the current runtime contract.
