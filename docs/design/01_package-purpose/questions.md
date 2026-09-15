@@ -67,3 +67,9 @@ Proof gate: bounded recovery concurrency, queue limits, backoff, release of rese
 Resolve D01 through D04 first. Then write a static placement protocol with request identity, state transitions, failure handling, and authority enforcement. Add contract tests before implementing dynamic capacity. Use [core alignment](alignment.md) to identify any required core change and keep that change scoped to its owner repository.
 
 When a decision is accepted, add its date, reason, rejected alternatives, affected packages, and evidence links here. Update [the proposed design](design.md) and the implementation alignment in the same change.
+
+## Evidence from the connected placement slice
+
+The [Scheduler contract](../../../guides/placement.md) uses fixed configured hosts and one manual core Controller per Topology. Admission is scoped to that Scheduler. Worker repair and drain use serialized bounded operations; source-host loss remains uncertain. This provides local evidence for D01 and D03 without accepting a global capacity or authority contract.
+
+D02 Ref mapping for the keyed manager, D04 protected-write authority, and provider/durable-operation decisions remain open. The [example review](lessons.md) tracks which proposed proofs are now covered.

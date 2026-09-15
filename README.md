@@ -1,6 +1,6 @@
 # Jido Cluster V3
 
-`jido_cluster` is an alpha cluster runtime for keyed Jido V3 Agents on connected
+`jido_cluster` is an alpha cluster runtime for keyed Agents and declared Topology placement on connected
 BEAM nodes. This branch is a local integration foundation. It is not ready for
 a Hex release or production use.
 
@@ -63,6 +63,8 @@ snapshot = Jido.AgentServer.snapshot(pid)
 restores the checkpoint and commit revision when persistence is configured.
 
 ## Foundation contract
+
+The [connected Topology Scheduler](guides/placement.md) adds requirement selection, complete per-Topology admission, cooperative drain, and bounded worker repair. It uses the core Controller and reports host loss as uncertain. Start with the [placement examples](examples/03_placement/README.md).
 
 - Only nodes with a live manager participate in placement and quorum checks.
 - Rendezvous hashing chooses the current placement node for `{manager, key}`.

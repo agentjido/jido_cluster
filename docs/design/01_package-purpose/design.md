@@ -10,6 +10,8 @@ A useful first application is one Agent per tenant session or device. Callers ca
 
 The current keyed counter is a small proof of routing and checkpoint recovery. It does not prove the complete proposed control plane. See the [example](../../../examples/01_cluster/01_01_keyed_counter/README.md).
 
+The implemented [placement slice](../../../guides/placement.md) adds configured-host scheduling, per-Scheduler admission, cooperative drain, and worker repair. It is narrower than the proposed control plane. Automatic host replacement, global reservations, authority, and durable operations remain proposed.
+
 ## Ownership
 
 | Owner | Owns |

@@ -44,6 +44,9 @@ Core has useful activation mechanisms, not a general distributed scheduler. Its 
 | Delivery | Call returns committed Agent; cast acknowledges enqueue; no automatic Signal retry | RPC timeout can have an unknown result |
 | Test setup | [ClusterCase](../../../test/support/cluster_case.ex) has isolated peers and separate control channels | Existing peer tests cover connected loss, not asymmetric partition authority |
 | Living docs | [Counter example](../../../examples/01_cluster/01_01_keyed_counter/README.md) and mirrored example tests | No FLAME, cloud, or fenced-write evidence |
+| Topology scheduling | [Scheduler](../../../lib/jido/cluster/scheduler.ex), [planner](../../../lib/jido/cluster/scheduler/planner.ex), and [placement examples](../../../examples/03_placement/README.md) | Root singleton Agents; configured inventory filtered by connected membership |
+| Admission and drain | Complete per-Scheduler slot selection before startup; serialized connected-node drain through core | Greedy packing, no global reservation store, and no global node drain |
+| Worker repair | Scheduler requests bounded manual core repair after worker exit | One operation per detected exit; uncertain outcomes require explicit retry |
 
 The previous implementation is retained under `archive/v2/`. Its rebalancer, replicas, adapters, and tests are historical reference. They are not active V3 features.
 
@@ -69,3 +72,13 @@ The source contract is intentionally small. Inventory comes from the application
 The move and recovery examples exposed cold-host checkpoint decoding before the Agent definition loaded. Core now loads the definition first. The [core regression](../../../../jido/test/jido/topology/controller_cold_restore_test.exs) uses copied checkpoint bytes and an unloaded Agent module on a fresh node; it fails before the order change and passes afterward. The safe decoder and record format stay unchanged.
 
 Verified local core fix: `9f4cc2b0fab3893285938d33b4fbaa225d5d5984`. This change is separate from the cluster repository and is not pushed by the example work.
+
+## Maintained placement slice
+
+The [03 Placement group](../../../examples/03_placement/README.md) now uses a public cluster lifecycle instead of test-selected nodes. The application supplies host labels and per-Scheduler capacity. The runtime checks connected availability and namespace parity, selects the entire plan, and starts a manual core Controller. Inventory updates retry admission. Drain and worker repair use the same serialized operation path.
+
+The [planner tests](../../../test/jido_cluster/placement/planner_test.exs) check slot limits, stable placement, invalid inventory and requirements, and unsupported groups. The [Scheduler tests](../../../test/jido_cluster/scheduler_test.exs) check ownership exclusion, rejected updates, absent instances, disconnected configured hosts, and blocked cleanup. Example tests check behavior on real peer nodes, committed work, Ref continuity, and worker cleanup.
+
+The host-loss example deliberately stays uncertain, even after compatible spare capacity is added. Core `place_agent/4` requires confirmed retirement of the current source. An unreachable source returns `:placement_uncertain`. The package does not bypass that contract or infer write authority from node loss.
+
+Global admission, durable operations, operation-owner restart, arbitrary resource compatibility, and automatic host replacement remain gaps. The current public contract is in the [placement guide](../../../guides/placement.md).

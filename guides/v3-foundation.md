@@ -78,3 +78,5 @@ Hex requirements and package metadata before a release.
 The [Topology lessons](../examples/02_topologies/README.md) use core definitions and the core Controller. `Jido.Cluster.Placement` selects from an explicit host inventory. `Jido.Cluster.Topology.Extension` lowers root `cluster_worker` declarations to ordinary Agents and static metadata. The application applies selected exact nodes through common core validation.
 
 Movement uses the existing public Controller mechanism. Host recovery is explicit Controller replacement after the test infrastructure confirms host exit. These examples do not implement the later authority or automatic recovery design.
+
+The next [placement group](../examples/03_placement/README.md) uses a public `Jido.Cluster.Scheduler` for requirement selection, complete per-Topology admission, connected drain, and worker repair. Host loss remains uncertain. Read its [current contract](placement.md) before using it.

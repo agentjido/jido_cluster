@@ -58,3 +58,17 @@ Start with requirements to maintained placement on fixed connected nodes. Add a 
 Admission and drain are useful within the connected-node mode. Neither grants exclusive write authority during partitions. Before claiming safe replacement across disconnected views, add a separate stale-writer proof at the protected storage operation: a previous activation must be unable to commit after a newer authority holder is accepted. Core CAS and a local manager-count check do not establish that guarantee.
 
 Return to [package purpose](README.md) or [decision questions](questions.md).
+
+## Implemented next slice
+
+The [03 Placement examples](../../../examples/03_placement/README.md) now prove maintained placement through `Jido.Cluster.Scheduler`. The original review above describes the first example group; it is retained to explain why this slice was added.
+
+| Proposed proof | Current evidence | Remaining scope |
+| --- | --- | --- |
+| Requirements to maintained placement | Runtime selects compatible connected hosts; namespace mismatch rejects startup | Discovery adapters and release/resource compatibility |
+| Automatic connected-host recovery | Host-loss status is uncertain, with no replacement writer | Confirmed source retirement and protected-write authority |
+| Drain a live node | Per-Scheduler drain selects and applies a cooperative move | Global drain and interrupted-operation reconciliation |
+| Capacity admission and failed-start cleanup | Complete slot admission; namespace rejection releases planned slots before startup | Global reservations and partial-activation failure reconciliation |
+| Reconcile an uncertain operation | Source loss remains visible after inventory changes | Durable operation identity and operation-owner restart |
+
+Worker exit has its own example: the Scheduler requests one bounded core repair pass and retains the Ref and checkpoint. This is different from host replacement. Read the [implementation alignment](alignment.md) and [guide](../../../guides/placement.md) for the supported limits.

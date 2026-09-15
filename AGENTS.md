@@ -18,6 +18,8 @@
 - `archive/v2/` is retained reference code. Do not use it as the current contract.
 - Jido owns Agent execution, checkpoint encoding, and commit revisions.
 - Put cluster membership, placement, and activation lifetime in this package.
+- `Scheduler` supports root singleton Topologies, configured connected hosts, and per-Scheduler capacity. Do not claim global admission or automatic host replacement.
+- Keep one repair owner for a scheduled Topology. Use the public core Controller with manual repair; preserve uncertain source retirement.
 - Target Elixir `~> 1.18`.
 - Add `@moduledoc` for public modules.
 - Add `@doc` and `@spec` for public functions.
