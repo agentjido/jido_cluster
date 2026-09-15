@@ -23,8 +23,8 @@ mise exec -- mix test --seed 0
 mise exec -- mix quality
 ```
 
-The `.tool-versions` file selects OTP 28 and Elixir 1.19. The V3 tests run without
-tag exclusions. CI checks out the sibling V3 repositories before it builds.
+The `.tool-versions` file selects OTP 28 and Elixir 1.19. The normal test run excludes peer and example tests. Use `mix test.all`
+to run all active tests. CI checks out the sibling V3 repositories before it builds.
 
 ## Start a manager
 
@@ -82,3 +82,5 @@ rejected rather than silently accepted.
 See [the V3 foundation guide](guides/v3-foundation.md) for test coverage and next
 steps. The previous V2 implementation and tests are retained under `archive/v2/`.
 They are not compiled, tested, or packaged as current V3 code.
+
+See the [living examples](examples/README.md) and [local node testing guide](guides/testing.md).

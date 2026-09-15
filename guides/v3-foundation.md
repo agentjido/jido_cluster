@@ -48,7 +48,7 @@ fencing design, plus partition tests.
 Run all active tests from `jido_cluster`:
 
 ```sh
-mise exec -- mix test --seed 0
+mise exec -- mix test.all
 ```
 
 The suite checks:
@@ -64,7 +64,7 @@ The suite checks:
 - quorum-loss shutdown and configuration mismatch rejection.
 
 The old 65-test V2 suite is retained in `archive/v2/test`. Its result is not a
-V3 release gate. No active test is excluded by a test alias.
+V3 release gate. The normal run excludes peer and example tags. `mix test.all` includes both groups.
 
 ## Next work
 

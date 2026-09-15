@@ -19,7 +19,7 @@ Run before opening a pull request:
 
 ```bash
 mix quality
-mix test
+mix test.all
 ```
 
 `mix quality` runs:
@@ -32,11 +32,11 @@ mix test
 ## Testing
 
 ```bash
-mix test
+mix test.all
 mix dialyzer
 ```
 
-Distributed tests use `ex_unit_cluster` and `:peer` and run in the normal ExUnit suite.
+Distributed tests use the shared `:peer` case and the `:peer` tag. Example tests use only `:example`. The normal unit run excludes both tags. See [local testing](guides/testing.md).
 
 ## Commit Messages
 

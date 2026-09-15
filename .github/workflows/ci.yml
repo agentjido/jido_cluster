@@ -61,6 +61,12 @@ jobs:
           mix compile --warnings-as-errors
         env:
           MIX_ENV: test
-      - name: Run all V3 tests
+      - name: Run unit tests
         working-directory: jido_cluster
         run: mix test --seed 0
+      - name: Run local node tests
+        working-directory: jido_cluster
+        run: mix test.peer
+      - name: Run example tests
+        working-directory: jido_cluster
+        run: mix test.examples

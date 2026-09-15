@@ -3,7 +3,10 @@
 ## Commands
 
 - `mix setup` - install dependencies and git hooks
-- `mix test` - run test suite
+- `mix test` - run unit tests (peer and example tags are excluded)
+- `mix test.peer` - run local multi-node tests
+- `mix test.examples` - run living example tests
+- `mix test.all` - run all active tests
 - `mix quality` - run formatter, compile, credo, doctor
 - `mix dialyzer` - run type analysis
 - `mix docs` - build docs
@@ -25,6 +28,9 @@
 
 - Unit tests should mirror `lib/` structure.
 - Distributed behavior should be covered in `test/jido_cluster/distributed/`.
+- Follow `examples/AGENTS.md` and `test/AGENTS.md` when adding living docs.
+- Mirror example source folders under `test/examples/` and use only `:example`.
+- Use `JidoCluster.Test.ClusterCase` for isolated local Erlang nodes and checked cleanup.
 - Use `JidoCluster.Test.Eventually` for bounded eventual assertions.
 
 ## Commit Style

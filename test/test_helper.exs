@@ -1,3 +1,2 @@
-System.cmd("epmd", ["-daemon"])
-
 ExUnit.start()
+ExUnit.configure(exclude: [:skip, :peer, :example])
