@@ -4,6 +4,8 @@ This folder defines the proposed purpose of `jido_cluster`. It separates the cur
 
 Start with [01 Package purpose](01_package-purpose/README.md). Read the [design](01_package-purpose/design.md), then the [alignment review](01_package-purpose/alignment.md), then the [decision questions](01_package-purpose/questions.md).
 
+The [example review](01_package-purpose/lessons.md) distinguishes core mechanisms from the cluster runtime that remains to be designed.
+
 ## Design source
 
 The main discussion is [issue #19: Distributed Agent systems and dynamic infrastructure](https://github.com/agentjido/jido_cluster/issues/19). It is an idea set, not an accepted API or release plan. [Issue #1: Common usage scenarios](https://github.com/agentjido/jido_cluster/issues/1) supplies application examples. Neither issue proves a runtime guarantee.

@@ -9,6 +9,7 @@ The proposed purpose is to coordinate where Jido Agents run across nodes and how
 1. [Design](design.md): purpose, owners, operating modes, and proof order.
 2. [Alignment](alignment.md): what core V3 and this package implement today.
 3. [Questions](questions.md): decisions needed before new APIs.
+4. [Lessons](lessons.md): what the first examples add, what core already owns, and stronger acceptance examples.
 
 The first target is a fixed set of connected BEAM nodes. Dynamic infrastructure is a later extension of the same placement model. External workspaces remain a separate design question.
 

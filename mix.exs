@@ -36,6 +36,7 @@ defmodule JidoCluster.MixProject do
           {"docs/design/01_package-purpose/README.md", filename: "design-01_package-purpose-readme"},
           {"docs/design/01_package-purpose/alignment.md", filename: "design-01_package-purpose-alignment"},
           {"docs/design/01_package-purpose/design.md", filename: "design-01_package-purpose-design"},
+          {"docs/design/01_package-purpose/lessons.md", filename: "design-01_package-purpose-lessons"},
           {"docs/design/01_package-purpose/questions.md", filename: "design-01_package-purpose-questions"},
           {"docs/design/README.md", filename: "design-design-readme"}
         ],

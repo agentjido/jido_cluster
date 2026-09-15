@@ -2,6 +2,8 @@
 
 These lessons build on core `Jido.Topology`, static `Jido.Topology.Extension` lowering, and the core Controller. Cluster policy selects a node; core owns activation and readiness.
 
+These are integration proofs of the core boundary. The tests still coordinate moves and Controller replacement themselves. They do not prove an automatic cluster placement service. See [what we learned and the next acceptance examples](../../docs/design/01_package-purpose/lessons.md).
+
 | Order | Lesson | Main proof |
 | --- | --- | --- |
 | 02_01 | [Eligible node](02_01_eligible_node/README.md) | A local control Agent and a remote worker start from one core Topology. |
