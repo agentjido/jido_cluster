@@ -1,10 +1,5 @@
 %Doctor.Config{
-  ignore_modules: [
-    Jido.Cluster.KeyRuntime.State,
-    JidoCluster.KeyRuntime,
-    JidoCluster.LeaseRenewer,
-    JidoCluster.LeaseStore
-  ],
+  ignore_modules: [Jido.Cluster.Internal.LocalManager],
   min_module_doc_coverage: 80,
   min_module_spec_coverage: 80,
   min_overall_doc_coverage: 90,

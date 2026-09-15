@@ -1,29 +1,15 @@
-# Jido Cluster Usage Rules
+# Jido Cluster V3 usage rules
 
-`jido_cluster` provides distributed keyed ownership for Jido agents.
+Use `Jido.Cluster.InstanceManager` for keyed work on connected BEAM nodes.
+Use compatible Jido V3 packages. This development branch uses sibling paths.
 
-## Core Rules
+Start matching managers on worker nodes. Set a stable namespace and deployment
+quorum. Use shared `Jido.Persistence.Adapter` storage for node-loss recovery.
+Create the Mnesia table before starting a manager.
 
-- Route keyed operations through `JidoCluster.InstanceManager`.
-- Do not call local `Jido.Agent.InstanceManager` directly when global singleton behavior is required.
-- Use a shared backend (Mnesia, Bedrock, Postgres) for cross-node recovery/migration.
-- Treat ETS as local-only storage (`shared_backend? == false`).
+Send Signals through manager `call/4` or `cast/3`. Treat returned pids as temporary
+observations. A cast acknowledges enqueue only. A timeout has an unknown result;
+do not retry a Signal without an application policy for repeated work.
 
-## Placement and Rebalance
-
-- Ownership is deterministic via rendezvous hashing.
-- Rebalancing is conservative by default (`30_000ms`, max `1` migration/tick).
-- Only the deterministic leader performs migrations.
-
-## Operational Safety
-
-- Ensure nodes are connected before relying on cluster ownership decisions.
-- For failover semantics, avoid ETS in production clusters.
-- Validate adapter options at startup (`repo`, table names, prefixes, etc.).
-
-## Testing Guidance
-
-- Test singleton races across nodes.
-- Test cross-node `call/cast` behavior.
-- Test ownership changes on node join/leave.
-- Assert `expected_rev` conflicts for shared storage adapters.
+Do not use V2 `storage`, `handoff_mode`, `replication`, or lease options. The first
+V3 foundation rejects these options. Files in `archive/v2` are reference code.

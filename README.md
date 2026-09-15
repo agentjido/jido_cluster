@@ -1,218 +1,84 @@
-# Jido Cluster
+# Jido Cluster V3
 
-[![Hex.pm](https://img.shields.io/hexpm/v/jido_cluster.svg)](https://hex.pm/packages/jido_cluster)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/jido_cluster/)
-[![CI](https://github.com/agentjido/jido_cluster/actions/workflows/ci.yml/badge.svg)](https://github.com/agentjido/jido_cluster/actions/workflows/ci.yml)
-[![License](https://img.shields.io/hexpm/l/jido_cluster.svg)](https://github.com/agentjido/jido_cluster/blob/main/LICENSE)
-[![Website](https://img.shields.io/badge/website-jido.run-0f172a.svg)](https://jido.run)
-[![Ecosystem](https://img.shields.io/badge/ecosystem-jido.run-0ea5e9.svg)](https://jido.run/ecosystem)
-[![Discord](https://img.shields.io/badge/discord-join-5865F2.svg?logo=discord&logoColor=white)](https://jido.run/discord)
+`jido_cluster` is an alpha cluster runtime for keyed Jido V3 Agents on connected
+BEAM nodes. This branch is a local integration foundation. It is not ready for
+a Hex release or production use.
 
-`jido_cluster` is a low-level clustered runtime for keyed Jido agents across
-connected BEAM nodes.
+## Local setup
 
-It lets an application route work by logical key while the runtime handles
-owner-node placement, singleton ownership, conservative rebalancing, and
-storage-backed recovery. The deployable unit is your OTP release, not a
-standalone `jido_cluster` service.
+Use the sibling V3 checkouts:
 
-## Alpha Status
+- `../jido` on `release/v3`
+- `../jido_action` on `release/v3`
+- `../jido_signal` with a compatible V3 version
 
-<!-- covers: jido_cluster.package.alpha_status -->
-`jido_cluster` is alpha-quality and is being developed in the open while the
-distributed ownership and failover model is still changing.
+`mix.exs` uses these paths with `override: true`. No environment switch or V2
+fallback is used. Restore Hex requirements before a package release.
 
-- Do not use this package for production systems yet.
-- The cluster coordination and durability story is still actively being built.
-- Bedrock-backed clustered scenarios are still under active integration work.
-- Expect API changes, incomplete behaviors, and breaking changes.
-
-<!-- covers: jido_cluster.package.public_namespace -->
-Primary public namespace: `Jido.Cluster.*` (legacy `JidoCluster.*` remains available).
-
-## Features
-
-<!-- covers: jido_cluster.package.connected_beam_runtime -->
-- Keyed singleton semantics per `{manager, key}`.
-- Deterministic owner-node placement via rendezvous hashing.
-- Cross-node `get/lookup/call/cast/stop` API by key.
-- Conservative rebalancer (`30_000ms`, max `1` migration/tick by default).
-- `Jido.Storage` adapters for ETS, Mnesia, Bedrock, and Postgres (raw Ecto).
-- Multi-node ExUnit testing support using `ex_unit_cluster` and `:peer`.
-
-## When To Use It
-
-<!-- covers: jido_cluster.package.narrow_non_goals -->
-
-Use `jido_cluster` when an app has stateful keyed work that should have one
-active owner in a connected BEAM cluster:
-
-- one workflow runner per `{tenant_id, workflow_id}`
-- one coordinator per account, customer, device, or session
-- one long-running agent per task or job key
-- one recoverable process whose state can resume through shared storage
-
-Do not use `jido_cluster` as a general multi-cluster fabric, semantic memory
-system, quorum replication layer, or domain actor framework. Those higher-level
-concerns should live above this package.
-
-## Installation
-
-Add `jido_cluster` to your dependencies:
-
-```elixir
-def deps do
-  [
-    {:jido_cluster, "~> 0.1.0"}
-  ]
-end
+```sh
+mise install
+mise exec -- mix setup
+mise exec -- mix compile --warnings-as-errors
+mise exec -- mix test --seed 0
+mise exec -- mix quality
 ```
 
-Then fetch dependencies:
+The `.tool-versions` file selects OTP 28 and Elixir 1.19. The V3 tests run without
+tag exclusions. CI checks out the sibling V3 repositories before it builds.
 
-```bash
-mix deps.get
-```
+## Start a manager
 
-### Installation via Igniter
-
-`jido_cluster` v0.1 does not yet provide an Igniter installer module.
-
-## Quick Start
-
-Start a distributed manager in your application's supervision tree:
+Start the same configuration on each worker node:
 
 ```elixir
 children = [
   {Jido.Cluster.InstanceManager,
    name: MyApp.ClusterManager,
    agent: MyApp.CounterAgent,
-   storage: {Jido.Cluster.Storage.Mnesia, table: :my_cluster_table},
-   rebalance: true,
-   rebalance_interval_ms: 30_000,
-   max_migrations_per_tick: 1}
+   namespace: "my-app/counters",
+   min_quorum_nodes: 2,
+   persistence: {Jido.Cluster.Storage.Mnesia, table: :cluster_agent_records}}
 ]
 ```
 
-Route operations by key from any connected node:
+Create the Mnesia schema and replicated table before manager startup. The table
+must be a `set` with attributes `[:key, :value]` and `local_content: false`.
+The application selects RAM or disk copies and any Mnesia majority policy.
+For local tests, use `Jido.Persistence.ETS` instead of shared storage.
+
+Route Signals by logical key:
 
 ```elixir
-signal = Jido.Signal.new!("inc", %{}, source: "/my_app")
+alias Jido.Cluster.InstanceManager
 
-{:ok, _pid} = Jido.Cluster.InstanceManager.get(MyApp.ClusterManager, "counter-1")
-{:ok, agent} = Jido.Cluster.InstanceManager.call(MyApp.ClusterManager, "counter-1", signal)
-:ok = Jido.Cluster.InstanceManager.cast(MyApp.ClusterManager, "counter-1", signal)
+signal = Jido.Signal.new!("inc", %{}, source: "/my-app")
+{:ok, agent} = InstanceManager.call(MyApp.ClusterManager, {:account, "one"}, signal)
+{:ok, pid} = InstanceManager.lookup(MyApp.ClusterManager, {:account, "one"})
+snapshot = Jido.AgentServer.snapshot(pid)
+# %{agent: %Jido.Agent{}, state_version: revision}
 ```
 
-Inspect ownership and cluster stats:
+`call/4` returns the committed V3 Agent. `cast/3` acknowledges enqueue only.
+`stop/2` stops the activation and keeps its record for recovery. A later `get/3`
+restores the checkpoint and commit revision when persistence is configured.
 
-```elixir
-owner = Jido.Cluster.InstanceManager.owner_node(MyApp.ClusterManager, "counter-1")
-stats = Jido.Cluster.InstanceManager.stats(MyApp.ClusterManager)
-```
+## Foundation contract
 
-## Deployment Model
+- Only nodes with a live manager participate in placement and quorum checks.
+- Rendezvous hashing chooses the current placement node for `{manager, key}`.
+- A connected-cluster lock serializes manager operations for each key.
+- Before work moves to a new connected owner, its prior activation is stopped.
+- Jido owns Action execution, Agent state, checkpoint encoding, and commit writes.
+- Quorum loss rejects new manager work and stops local activations.
+- Returned pids are temporary observations. Route writes through the manager.
+- A timeout can have an unknown result. Signals are never retried automatically.
 
-<!-- covers: jido_cluster.package.deployment_model -->
+This connected BEAM view and lock do not provide a durable writer lease.
+Configure quorum for the fixed deployment and shared storage for recovery.
+The first foundation does not support live replicas, disconnected island leases,
+Postgres cluster adapters, or automatic periodic rebalancing. Old V2 options are
+rejected rather than silently accepted.
 
-`jido_cluster` is embedded in an OTP application. Run the same release on
-multiple connected BEAM nodes, and start the same `Jido.Cluster.InstanceManager`
-configuration on each participating node.
-
-Use a Phoenix app when HTTP, webhooks, WebSockets, LiveView, or admin endpoints
-are the ingress. A controller or channel can build a `Jido.Signal` and route it
-through `Jido.Cluster.InstanceManager.call/4`; the request may hit any node.
-
-Use a headless OTP release when the ingress is a queue, PubSub topic, Kafka,
-SQS, cron, sensors, or another internal event source. The worker consumes the
-event and routes it through the same manager API.
-
-In both cases, callers address logical keys, not pids or nodes.
-
-## Ownership Contract
-
-- Route clustered work through `Jido.Cluster.InstanceManager` by `{manager, key}`.
-- One logical key has one active primary and at most one standby.
-- Live-transfer mode is sync-only today. Configure `replication: %{replicas: 0, mode: :sync}` for primary-only placement or `replication: %{replicas: 1, mode: :sync}` for primary plus standby.
-- Returned pids from `get/lookup` are short-lived observations of the current
-  primary, not a durable cluster identity.
-- `epoch` tracks ownership changes such as promotion and planned handoff.
-- `seq` tracks the last acknowledged replicated update for the key.
-- `owner_node/2` and `stats/1` reflect the current visible cluster view.
-
-## Partition Policy
-
-With `coordination_backend: :connected_beam` and `partition_policy: :freeze`,
-`min_quorum_nodes` gates clustered work. When quorum is lost, managers reject
-new work with `{:error, :cluster_unavailable}` and local ownership is stopped.
-Live-transfer managers stop both local primaries and standbys so a minority
-partition cannot continue serving or promote a standby later.
-
-Freeze and unfreeze transitions emit telemetry under
-`[:jido_cluster, :partition, :freeze | :unfreeze]`.
-
-## Storage Adapters
-
-- `Jido.Cluster.Storage.ETS`
-  - Delegates to `Jido.Storage.ETS`
-  - Local-only backend (`shared_backend? == false`)
-- `Jido.Cluster.Storage.Mnesia`
-  - Shared backend with transactional `expected_rev` checks
-- `Jido.Cluster.Storage.Bedrock`
-  - Shared backend with transactional append and revision checks
-- `Jido.Cluster.Storage.Postgres`
-  - Shared backend via raw Ecto SQL + row locking
-
-## Rebalancing
-
-- Deterministic leader: smallest node name in connected cluster view.
-- Rebalancer only moves keys when storage backend is shared.
-- ETS migrations are skipped and emit telemetry events.
-
-## Experimental Bedrock Lease Mode
-
-`coordination_backend: {:bedrock_lease, opts}` is an experimental disconnected
-island mode. A local renewer refreshes active leases for idle local keys before
-TTL expiry; if renewal fails or another holder owns the key, the local runtime
-is stopped. Lease acquire, renew, release, expiry, stale rejection, and failure
-paths emit telemetry under `[:jido_cluster, :lease, stage]`.
-
-## Production Drill
-
-- [Fly connected-cluster failover drill](guides/fly-multi-region-failover-demo.md)
-
-The Fly guide is an advanced connected-BEAM/shared-storage drill. It is not a
-general multi-cluster federation guarantee.
-
-## Testing Multi-Node Behavior
-
-The package includes distributed tests under `test/jido_cluster/distributed/` that use:
-
-- `ex_unit_cluster` for same-test-run node orchestration
-- `:peer` for low-level distributed smoke tests
-
-Run tests with:
-
-```bash
-mix test
-```
-
-## Development
-
-```bash
-mix setup
-mix spec.init
-mix spec.verify --debug
-mix spec.check --no-run-commands
-mix quality
-mix test
-```
-
-`specled.dev` is installed as a dev/test tool via `spec_led_ex`. The `.spec/`
-workspace is the current-truth contract layer for the evolving `Jido.Cluster.*`
-runtime and should be updated alongside meaningful API, topology, or scenario
-changes.
-
-## License
-
-Apache-2.0
+See [the V3 foundation guide](guides/v3-foundation.md) for test coverage and next
+steps. The previous V2 implementation and tests are retained under `archive/v2/`.
+They are not compiled, tested, or packaged as current V3 code.

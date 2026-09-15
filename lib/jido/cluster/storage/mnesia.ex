@@ -1,27 +1,92 @@
 defmodule Jido.Cluster.Storage.Mnesia do
   @moduledoc """
-  Mnesia-backed `Jido.Storage` adapter.
+  Mnesia byte adapter for Jido V3 persistence.
 
-  Preferred public namespace. Delegates to `JidoCluster.Storage.Mnesia`.
+  `:table` selects an application-created `set` table with attributes
+  `[:key, :value]`. The application owns schema creation, table copies, disk
+  policy, and supervision. This adapter never creates a local table and calls
+  it shared storage. Configure replicated copies before starting managers.
+
+  Writes and compare-and-swap checks use Mnesia transactions. Checkpoint
+  encoding and revision checks remain in `Jido.Persistence`.
   """
-
-  @behaviour Jido.Storage
-
-  @impl true
-  defdelegate get_checkpoint(key, opts), to: JidoCluster.Storage.Mnesia
+  @behaviour Jido.Persistence.Adapter
 
   @impl true
-  defdelegate put_checkpoint(key, data, opts), to: JidoCluster.Storage.Mnesia
+  @spec validate_options(keyword()) :: :ok | {:error, term()}
+  def validate_options(opts) do
+    with true <- is_list(opts) and Keyword.keyword?(opts),
+         [:table] <- Keyword.keys(opts),
+         table when is_atom(table) and not is_nil(table) <- Keyword.get(opts, :table),
+         [:key, :value] <- :mnesia.table_info(table, :attributes),
+         :set <- :mnesia.table_info(table, :type),
+         false <- :mnesia.table_info(table, :local_content),
+         :ok <- :mnesia.wait_for_tables([table], 5_000) do
+      :ok
+    else
+      _ -> {:error, :invalid_mnesia_options}
+    end
+  catch
+    :exit, reason -> {:error, {:mnesia_unavailable, reason}}
+  end
 
   @impl true
-  defdelegate delete_checkpoint(key, opts), to: JidoCluster.Storage.Mnesia
+  @spec get(binary(), keyword()) :: {:ok, binary()} | {:error, term()}
+  def get(key, opts) when is_binary(key) do
+    with :ok <- validate_options(opts) do
+      transaction(fn -> read_value(Keyword.fetch!(opts, :table), key) end)
+    end
+  end
 
   @impl true
-  defdelegate load_thread(thread_id, opts), to: JidoCluster.Storage.Mnesia
+  @spec put(binary(), binary(), keyword()) :: :ok | {:error, term()}
+  def put(key, value, opts) when is_binary(key) and is_binary(value) do
+    with :ok <- validate_options(opts) do
+      transaction(fn -> :mnesia.write({Keyword.fetch!(opts, :table), key, value}) end)
+    end
+  end
 
   @impl true
-  defdelegate append_thread(thread_id, entries, opts), to: JidoCluster.Storage.Mnesia
+  @spec compare_and_swap(binary(), binary() | :not_found, binary(), keyword()) :: :ok | {:error, term()}
+  def compare_and_swap(key, expected, value, opts)
+      when is_binary(key) and (expected == :not_found or is_binary(expected)) and is_binary(value) do
+    with :ok <- validate_options(opts) do
+      transaction(fn -> swap_value(Keyword.fetch!(opts, :table), key, expected, value) end)
+    end
+  end
 
   @impl true
-  defdelegate delete_thread(thread_id, opts), to: JidoCluster.Storage.Mnesia
+  @spec delete(binary(), keyword()) :: :ok | {:error, term()}
+  def delete(key, opts) when is_binary(key) do
+    with :ok <- validate_options(opts) do
+      transaction(fn -> :mnesia.delete({Keyword.fetch!(opts, :table), key}) end)
+    end
+  end
+
+  defp read_value(table, key) do
+    case :mnesia.read(table, key, :read) do
+      [{^table, ^key, value}] when is_binary(value) -> {:ok, value}
+      [] -> {:error, :not_found}
+      _ -> {:error, :invalid_value}
+    end
+  end
+
+  defp swap_value(table, key, expected, value) do
+    case {:mnesia.read(table, key, :write), expected} do
+      {[], :not_found} -> :mnesia.write({table, key, value})
+      {[{^table, ^key, ^expected}], expected} when is_binary(expected) -> :mnesia.write({table, key, value})
+      _ -> {:error, :conflict}
+    end
+  end
+
+  defp transaction(fun) do
+    if :mnesia.is_transaction() do
+      {:error, {:rejected, :nested_transaction}}
+    else
+      case :mnesia.transaction(fun) do
+        {:atomic, result} -> result
+        {:aborted, reason} -> {:error, {:mnesia_aborted, reason}}
+      end
+    end
+  end
 end

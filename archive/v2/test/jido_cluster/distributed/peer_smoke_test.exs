@@ -51,7 +51,7 @@ defmodule JidoCluster.Distributed.PeerSmokeTest do
       n2 in nodes
     end)
 
-    connected = :peer.call(p1, Jido.Cluster.Topology, :connected_nodes, [])
+    connected = :peer.call(p1, JidoCluster.Topology, :connected_nodes, [])
 
     assert n1 in connected
     assert n2 in connected

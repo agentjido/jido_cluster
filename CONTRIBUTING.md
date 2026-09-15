@@ -4,11 +4,13 @@
 
 - Elixir `~> 1.18` (1.19 recommended)
 - Erlang/OTP 27 or 28
+- Compatible sibling Jido V3 checkouts as described in `README.md`
 
 ## Setup
 
 ```bash
-mix setup
+mise install
+mise exec -- mix setup
 ```
 
 ## Quality Gates
@@ -24,15 +26,14 @@ mix test
 
 - `mix format --check-formatted`
 - `mix compile --warnings-as-errors`
-- `mix credo --min-priority higher`
-- `mix dialyzer`
+- `mix credo --strict`
 - `mix doctor --raise`
 
 ## Testing
 
 ```bash
 mix test
-mix coveralls
+mix dialyzer
 ```
 
 Distributed tests use `ex_unit_cluster` and `:peer` and run in the normal ExUnit suite.
@@ -60,5 +61,5 @@ git commit -m "fix(storage): enforce expected_rev conflict handling"
 
 - Keep changes focused and small.
 - Add or update tests for behavior changes.
-- Update `CHANGELOG.md` for user-visible changes.
+- Update the V3 foundation guide for contract changes. Release notes are generated from Git history.
 - Ensure CI is green before merge.

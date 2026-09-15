@@ -1,46 +1,66 @@
-name: CI
+name: V3 Foundation CI
 
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main, v3-spike]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
-    uses: agentjido/github-actions/.github/workflows/elixir-lint.yml@v3
-    with:
-      otp_version: "28"
-      elixir_version: "1.19"
-      lint_command: >-
-        mix format --check-formatted &&
-        mix compile --warnings-as-errors &&
-        mix credo --min-priority higher &&
-        mix spec.check --no-run-commands &&
-        mix dialyzer &&
-        mix doctor --raise
-      validate_hex_package: false
-
   test:
-    name: Test
-    uses: agentjido/github-actions/.github/workflows/elixir-test.yml@v3
-    with:
-      otp_versions: '["27", "28"]'
-      elixir_versions: '["1.18", "1.19"]'
-      test_command: mix test
-
-  real_bedrock:
-    name: Real Bedrock
-    uses: agentjido/github-actions/.github/workflows/elixir-test.yml@v3
-    with:
-      otp_versions: '["28"]'
-      elixir_versions: '["1.19"]'
-      test_command: >-
-        mix test --include real_bedrock
-        test/jido_cluster/distributed/bedrock_acceptance_test.exs
-        test/jido_cluster/distributed/disconnected_island_runtime_test.exs
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - otp: "27"
+            elixir: "1.18"
+          - otp: "28"
+            elixir: "1.19"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: jido_cluster
+      - uses: actions/checkout@v4
+        with:
+          repository: agentjido/jido
+          ref: release/v3
+          path: jido
+      - uses: actions/checkout@v4
+        with:
+          repository: agentjido/jido_action
+          ref: release/v3
+          path: jido_action
+      - uses: actions/checkout@v4
+        with:
+          repository: agentjido/jido_signal
+          ref: release/v3
+          path: jido_signal
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+      - name: Install dependencies
+        working-directory: jido_cluster
+        run: |
+          mix deps.get
+          MIX_ENV=test mix deps.get
+      - name: Check code quality
+        working-directory: jido_cluster
+        run: mix quality
+      - name: Check format and compile
+        working-directory: jido_cluster
+        run: |
+          mix format --check-formatted
+          mix compile --warnings-as-errors
+        env:
+          MIX_ENV: test
+      - name: Run all V3 tests
+        working-directory: jido_cluster
+        run: mix test --seed 0

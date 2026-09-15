@@ -4,12 +4,17 @@
 
 - `mix setup` - install dependencies and git hooks
 - `mix test` - run test suite
-- `mix coveralls` - run tests with coverage checks
-- `mix quality` - run formatter, compile, credo, dialyzer, doctor
+- `mix quality` - run formatter, compile, credo, doctor
+- `mix dialyzer` - run type analysis
 - `mix docs` - build docs
 
 ## Standards
 
+- Work on `v3-spike` for the V3 foundation.
+- Use the local sibling Jido V3 dependencies declared in `mix.exs`.
+- `archive/v2/` is retained reference code. Do not use it as the current contract.
+- Jido owns Agent execution, checkpoint encoding, and commit revisions.
+- Put cluster membership, placement, and activation lifetime in this package.
 - Target Elixir `~> 1.18`.
 - Add `@moduledoc` for public modules.
 - Add `@doc` and `@spec` for public functions.

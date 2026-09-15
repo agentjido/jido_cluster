@@ -1,7 +1,7 @@
 defmodule JidoCluster.TopologyTest do
   use ExUnit.Case, async: true
 
-  alias Jido.Cluster.Topology
+  alias JidoCluster.Topology
 
   test "connected_nodes includes self" do
     assert node() in Topology.connected_nodes()

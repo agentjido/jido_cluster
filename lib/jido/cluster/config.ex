@@ -1,155 +1,76 @@
 defmodule Jido.Cluster.Config do
-  @moduledoc """
-  Canonical manager configuration for clustered Jido runtimes.
-  """
+  @moduledoc "Validated configuration for one V3 cluster manager."
 
-  alias Jido.Cluster.LeaseBackend
-  alias Jido.Cluster.Replication
+  @enforce_keys [:name, :agent, :jido, :namespace]
+  defstruct [
+    :name,
+    :agent,
+    :jido,
+    :namespace,
+    :persistence,
+    min_quorum_nodes: 1,
+    idle_timeout: :infinity,
+    agent_opts: []
+  ]
 
-  @schema Zoi.struct(
-            __MODULE__,
-            %{
-              name: Zoi.atom(description: "Manager name") |> Zoi.optional(),
-              agent: Zoi.atom(description: "Agent module") |> Zoi.optional(),
-              jido: Zoi.atom(description: "Jido instance name") |> Zoi.default(Jido),
-              agent_opts: Zoi.list(Zoi.any(), description: "Extra agent options") |> Zoi.default([]),
-              storage: Zoi.any(description: "Optional storage backend") |> Zoi.default(nil),
-              idle_timeout: Zoi.any(description: "Idle timeout for managed agents") |> Zoi.default(:infinity),
-              partition_policy:
-                Zoi.atom(description: "Cluster partition policy")
-                |> Zoi.default(:freeze),
-              min_quorum_nodes:
-                Zoi.integer(description: "Minimum quorum node count")
-                |> Zoi.min(1)
-                |> Zoi.default(1),
-              handoff_mode:
-                Zoi.atom(description: "Handoff mode")
-                |> Zoi.default(:hibernate_thaw),
-              coordination_backend:
-                Zoi.any(description: "Coordination backend")
-                |> Zoi.default(:connected_beam),
-              replication:
-                Replication.schema()
-                |> Zoi.default(Replication.new!(nil))
-            },
-            coerce: true
-          )
+  @type t :: %__MODULE__{
+          name: atom(),
+          agent: module(),
+          jido: atom(),
+          namespace: String.t(),
+          persistence: Jido.Persistence.adapter_config(),
+          min_quorum_nodes: pos_integer(),
+          idle_timeout: pos_integer() | :infinity,
+          agent_opts: keyword()
+        }
 
-  @type t :: unquote(Zoi.type_spec(@schema))
-  @enforce_keys Zoi.Struct.enforce_keys(@schema)
-  defstruct Zoi.Struct.struct_fields(@schema)
+  @keys [:name, :agent, :namespace, :persistence, :min_quorum_nodes, :idle_timeout, :agent_opts]
+  @agent_keys [
+    :turn_timeout,
+    :directive_timeout,
+    :readiness_timeout,
+    :max_postponed_signals,
+    :max_directives_per_turn,
+    :error_policy,
+    :debug,
+    :debug_max_events
+  ]
 
-  @doc """
-  Returns the validation schema used to normalize clustered manager options.
-  """
-  @spec schema() :: Zoi.schema()
-  def schema, do: @schema
-
-  @doc """
-  Builds a validated manager configuration.
-  """
-  @spec new(keyword() | map() | nil) :: {:ok, t()} | {:error, term()}
-  def new(nil), do: Zoi.parse(@schema, %{replication: Replication.new!(nil)})
-  def new(attrs) when is_list(attrs), do: attrs |> Map.new() |> new()
-
-  def new(attrs) when is_map(attrs) do
-    handoff_mode = Map.get(attrs, :handoff_mode, :hibernate_thaw)
-
-    with {:ok, replication} <- Replication.new(Map.get(attrs, :replication, default_replication(handoff_mode))),
-         {:ok, _} <- validate_partition_policy(Map.get(attrs, :partition_policy, :freeze)),
-         {:ok, _} <- validate_handoff_mode(handoff_mode),
-         :ok <- validate_replication_compatibility(handoff_mode, replication),
-         {:ok, coordination_backend} <-
-           validate_coordination_backend(Map.get(attrs, :coordination_backend, :connected_beam)) do
-      attrs =
-        attrs
-        |> Map.put(:replication, replication)
-        |> Map.put(:coordination_backend, coordination_backend)
-
-      Zoi.parse(@schema, attrs)
+  @doc "Validates manager options. V2 options are rejected."
+  @spec new(keyword()) :: {:ok, t()} | {:error, term()}
+  def new(opts) when is_list(opts) do
+    with true <- Keyword.keyword?(opts),
+         [] <- Keyword.keys(opts) -- @keys,
+         true <- length(Keyword.keys(opts)) == length(Enum.uniq(Keyword.keys(opts))),
+         name when is_atom(name) and name not in [nil, true, false] <- Keyword.get(opts, :name),
+         agent when is_atom(agent) and not is_nil(agent) <- Keyword.get(opts, :agent),
+         true <- Code.ensure_loaded?(agent) and function_exported?(agent, :new, 0),
+         namespace = Keyword.get(opts, :namespace, "jido-cluster/#{name}"),
+         true <- is_binary(namespace) and byte_size(namespace) > 0,
+         quorum = Keyword.get(opts, :min_quorum_nodes, 1),
+         true <- is_integer(quorum) and quorum > 0,
+         idle = Keyword.get(opts, :idle_timeout, :infinity),
+         true <- idle == :infinity or (is_integer(idle) and idle > 0),
+         agent_opts = Keyword.get(opts, :agent_opts, []),
+         true <- is_list(agent_opts) and Keyword.keyword?(agent_opts),
+         [] <- Keyword.keys(agent_opts) -- @agent_keys,
+         {:ok, persistence} <- Jido.Persistence.resolve_config(Keyword.get(opts, :persistence), nil) do
+      {:ok,
+       %__MODULE__{
+         name: name,
+         agent: agent,
+         jido: Module.concat(Jido.Cluster.Runtime, name),
+         namespace: namespace,
+         persistence: persistence,
+         min_quorum_nodes: quorum,
+         idle_timeout: idle,
+         agent_opts: agent_opts
+       }}
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :invalid_manager_options}
     end
   end
 
-  def new(_),
-    do: {:error, Jido.Cluster.Error.validation_error("Config requires a keyword list or map")}
-
-  @doc """
-  Builds a validated manager configuration or raises a validation error.
-  """
-  @spec new!(keyword() | map() | nil) :: t()
-  def new!(attrs) do
-    case new(attrs) do
-      {:ok, config} -> config
-      {:error, reason} -> raise Jido.Cluster.Error.validation_error("Invalid cluster config", %{details: reason})
-    end
-  end
-
-  @doc """
-  Merges new attributes into an existing manager configuration and revalidates it.
-  """
-  @spec merge(t() | nil, map() | keyword()) :: t()
-  def merge(nil, attrs), do: new!(attrs)
-  def merge(%__MODULE__{} = config, attrs) when is_list(attrs), do: merge(config, Map.new(attrs))
-
-  def merge(%__MODULE__{} = config, attrs) when is_map(attrs) do
-    config
-    |> Map.from_struct()
-    |> Map.merge(attrs)
-    |> new!()
-  end
-
-  @doc """
-  Validates the configured partition behavior.
-  """
-  @spec validate_partition_policy(term()) :: {:ok, :freeze | :soft_owner} | {:error, term()}
-  def validate_partition_policy(:freeze), do: {:ok, :freeze}
-  def validate_partition_policy(:soft_owner), do: {:ok, :soft_owner}
-
-  def validate_partition_policy(other) do
-    {:error, Jido.Cluster.Error.validation_error("invalid partition_policy: #{inspect(other)}")}
-  end
-
-  @doc """
-  Validates the configured runtime handoff mode.
-  """
-  @spec validate_handoff_mode(term()) :: {:ok, :hibernate_thaw | :live_transfer} | {:error, term()}
-  def validate_handoff_mode(:hibernate_thaw), do: {:ok, :hibernate_thaw}
-  def validate_handoff_mode(:live_transfer), do: {:ok, :live_transfer}
-
-  def validate_handoff_mode(other) do
-    {:error, Jido.Cluster.Error.validation_error("invalid handoff_mode: #{inspect(other)}")}
-  end
-
-  @doc """
-  Normalizes the coordination backend configuration.
-  """
-  @spec validate_coordination_backend(term()) :: {:ok, term()} | {:error, term()}
-  def validate_coordination_backend(:connected_beam), do: {:ok, :connected_beam}
-
-  def validate_coordination_backend({:bedrock_lease, %LeaseBackend{} = backend}),
-    do: {:ok, {:bedrock_lease, backend}}
-
-  def validate_coordination_backend({:bedrock_lease, lease_opts}) when is_list(lease_opts) do
-    with {:ok, %LeaseBackend{} = backend} <- LeaseBackend.new(lease_opts) do
-      {:ok, {:bedrock_lease, backend}}
-    end
-  end
-
-  def validate_coordination_backend(other) do
-    {:error, Jido.Cluster.Error.validation_error("invalid coordination_backend: #{inspect(other)}")}
-  end
-
-  defp default_replication(:live_transfer), do: %{replicas: 0, mode: :sync, promotion_timeout_ms: 5_000}
-  defp default_replication(_handoff_mode), do: nil
-
-  defp validate_replication_compatibility(:live_transfer, %Replication{mode: :sync}), do: :ok
-  defp validate_replication_compatibility(:hibernate_thaw, %Replication{}), do: :ok
-
-  defp validate_replication_compatibility(:live_transfer, %Replication{} = replication) do
-    {:error,
-     Jido.Cluster.Error.validation_error(
-       "live_transfer requires sync replication mode",
-       %{details: %{replication: replication}}
-     )}
-  end
+  def new(_), do: {:error, :invalid_manager_options}
 end

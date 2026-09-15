@@ -1,13 +1,16 @@
 defmodule Jido.Cluster do
-  # covers: jido_cluster.package.public_namespace
-  # covers: jido_cluster.bootstrap.namespaces_expose_connected_nodes
   @moduledoc """
-  Distributed lifecycle management for Jido agents.
+  Connected BEAM cluster foundation for Jido V3 Agents.
 
-  Preferred public namespace for `jido_cluster`.
+  Start the same `Jido.Cluster.InstanceManager` configuration on each worker
+  node. Route work through the manager by logical key. Jido owns Agent execution,
+  checkpoint encoding, and commit revisions. This package owns placement and
+  the lifetime of each keyed activation.
+
+  This foundation does not provide disconnected island leases or live replicas.
   """
 
-  @doc "Returns connected nodes including the current node."
+  @doc "Returns the visible BEAM nodes, including this node."
   @spec connected_nodes() :: [node()]
-  defdelegate connected_nodes(), to: JidoCluster
+  defdelegate connected_nodes(), to: Jido.Cluster.Topology
 end
