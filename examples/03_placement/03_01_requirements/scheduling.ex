@@ -4,7 +4,7 @@ defmodule Jido.Cluster.Examples.RequirementScheduling do
 
   topology do
     agents do
-      cluster_worker(:worker, Jido.Cluster.Examples.Placement.Worker, labels: ["compute"])
+      cluster_worker :worker, Jido.Cluster.Examples.Placement.Worker, labels: ["compute"]
     end
   end
 end

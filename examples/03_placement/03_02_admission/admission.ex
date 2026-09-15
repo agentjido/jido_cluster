@@ -4,8 +4,8 @@ defmodule Jido.Cluster.Examples.CapacityAdmission do
 
   topology do
     agents do
-      cluster_worker(:first, Jido.Cluster.Examples.Placement.Worker, labels: ["compute"])
-      cluster_worker(:second, Jido.Cluster.Examples.Placement.Worker, labels: ["compute"])
+      cluster_worker :first, Jido.Cluster.Examples.Placement.Worker, labels: ["compute"]
+      cluster_worker :second, Jido.Cluster.Examples.Placement.Worker, labels: ["compute"]
     end
   end
 end

@@ -37,7 +37,7 @@ defmodule JidoCluster.Topology.ExtensionTest do
 
             topology do
               agents do
-                cluster_worker(:worker, Jido.Cluster.Examples.Topologies.Counter, labels: [""])
+                cluster_worker :worker, Jido.Cluster.Examples.Topologies.Counter, labels: [""]
               end
             end
           end

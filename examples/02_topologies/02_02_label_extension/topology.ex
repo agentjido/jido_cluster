@@ -4,7 +4,7 @@ defmodule Jido.Cluster.Examples.LabelExtension do
 
   topology do
     agents do
-      cluster_worker(:worker, Jido.Cluster.Examples.Topologies.Counter, labels: ["compute"])
+      cluster_worker :worker, Jido.Cluster.Examples.Topologies.Counter, labels: ["compute"]
     end
   end
 end
