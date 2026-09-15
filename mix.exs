@@ -26,7 +26,18 @@ defmodule JidoCluster.MixProject do
           {"examples/AGENTS.md", filename: "example-instructions"},
           {"test/AGENTS.md", filename: "test-instructions"},
           {"examples/01_cluster/README.md", filename: "cluster-examples"},
-          {"examples/01_cluster/01_01_keyed_counter/README.md", filename: "keyed-counter"}
+          {"examples/01_cluster/01_01_keyed_counter/README.md", filename: "keyed-counter"},
+          {"examples/02_topologies/README.md", filename: "topology-examples"},
+          {"examples/02_topologies/02_01_eligible_node/README.md", filename: "02-01-eligible-node"},
+          {"examples/02_topologies/02_02_label_extension/README.md", filename: "02-02-label-extension"},
+          {"examples/02_topologies/02_03_stateful_move/README.md", filename: "02-03-stateful-move"},
+          {"examples/02_topologies/02_04_host_recovery/README.md", filename: "02-04-host-recovery"},
+          {"examples/02_topologies/02_05_bus_locality/README.md", filename: "02-05-bus-locality"},
+          {"docs/design/01_package-purpose/README.md", filename: "design-01_package-purpose-readme"},
+          {"docs/design/01_package-purpose/alignment.md", filename: "design-01_package-purpose-alignment"},
+          {"docs/design/01_package-purpose/design.md", filename: "design-01_package-purpose-design"},
+          {"docs/design/01_package-purpose/questions.md", filename: "design-01_package-purpose-questions"},
+          {"docs/design/README.md", filename: "design-design-readme"}
         ],
         filter_modules: fn module, _ ->
           not String.starts_with?(Atom.to_string(module), "Elixir.Jido.Cluster.Examples.")
@@ -54,6 +65,7 @@ defmodule JidoCluster.MixProject do
       {:jido, "~> 3.0.0-beta.1", path: "../jido", override: true},
       {:jido_signal, "~> 3.0.0-beta.4", path: "../jido_signal", override: true},
       {:jido_action, "~> 3.0.0-beta.11", path: "../jido_action", override: true},
+      {:spark, "~> 2.7"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:doctor, "~> 0.21", only: :dev, runtime: false},

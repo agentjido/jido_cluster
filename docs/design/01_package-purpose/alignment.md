@@ -24,11 +24,11 @@ The core [Topology control-plane briefing](../../../../jido/docs/design/11_topol
 | [Topology extension](../../../../jido/lib/jido/topology/extension.ex) | Pure static lowering, common validation, no services or process startup | An authoring extension cannot perform live scheduling |
 | [Persistence adapter](../../../../jido/lib/jido/persistence/adapter.ex) | Atomic byte or opaque-token compare-and-swap; unknown required write results stop the activation | Preserve required-write behavior; CAS is not an ownership epoch |
 | [Persistence record](../../../../jido/lib/jido/persistence/record.ex) | Core identity validation, checkpoint encoding, revisions, and tombstones | Do not add a separate cluster checkpoint format |
-| [Remote child guide](../../../../jido/guides/ownership-orphans-and-remote-children.md) | Explicit remote child lifecycle with local relationship limits | Separate parent-child ownership from distributed write authority |
+| [Remote child guide](https://github.com/agentjido/jido/blob/54247adbb787428b112ca8c19e9a63b16ccd0194/guides/ownership-orphans-and-remote-children.md) | Explicit remote child lifecycle with local relationship limits | Separate parent-child ownership from distributed write authority |
 
 Remote Topology Agents cannot use a Controller-owned local Bus. Node-local ETS, files, Registry entries, and Bus instances do not become shared resources because an Agent moves. A provider must prove runtime and resource compatibility before it reports readiness.
 
-Core has useful activation mechanisms, not a general distributed scheduler. Its Controller placement test is evidence of exact-node mechanics: [controller_placement_test.exs](../../../../jido/test/jido/topology/controller_placement_test.exs). That suite was inspected as a design source; it was not rerun for this documentation change.
+Core has useful activation mechanisms, not a general distributed scheduler. Its Controller placement test is evidence of exact-node mechanics: [controller_placement_test.exs](../../../../jido/test/jido/topology/controller_placement_test.exs). That suite was inspected for the design review. It is also run with the cold-restore regression for the Topology example slice.
 
 ## Current package
 
@@ -59,3 +59,13 @@ The previous implementation is retained under `archive/v2/`. Its rebalancer, rep
 8. Define public operation states and operator controls before exposing long-running moves.
 
 See [questions](questions.md) for proposed decisions and proof gates.
+
+## Topology example slice
+
+The [Topology examples](../../../examples/02_topologies/README.md) now define the first test-driven slice: eligible selection, static label lowering, cooperative movement, explicit recovery after confirmed host exit, and local Bus rejection. [Placement unit tests](../../../test/jido_cluster/placement/selection_test.exs) and [extension tests](../../../test/jido_cluster/topology/extension_test.exs) cover the pure policy boundary.
+
+The source contract is intentionally small. Inventory comes from the application. Label requirements use Topology metadata. No discovery, authority provider, automated recovery service, or distributed Bus is selected by this slice. The existing decision questions remain open beyond these examples.
+
+The move and recovery examples exposed cold-host checkpoint decoding before the Agent definition loaded. Core now loads the definition first. The [core regression](../../../../jido/test/jido/topology/controller_cold_restore_test.exs) uses copied checkpoint bytes and an unloaded Agent module on a fresh node; it fails before the order change and passes afterward. The safe decoder and record format stay unchanged.
+
+Verified local core fix: `9f4cc2b0fab3893285938d33b4fbaa225d5d5984`. This change is separate from the cluster repository and is not pushed by the example work.

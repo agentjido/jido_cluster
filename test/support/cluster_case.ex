@@ -83,17 +83,19 @@ defmodule JidoCluster.Test.ClusterCase do
     )
   end
 
-  def shared_table(cluster, n1, n2) do
-    assert {:ok, _} = cluster_call(cluster, n1, :mnesia, :change_config, [:extra_db_nodes, [n2]])
+  def shared_table(cluster, n1, n2), do: shared_table(cluster, [n1, n2])
+
+  def shared_table(cluster, [first | rest] = workers) do
+    assert {:ok, _} = cluster_call(cluster, first, :mnesia, :change_config, [:extra_db_nodes, rest])
     table = :"cluster_records_#{System.unique_integer([:positive])}"
 
     assert {:atomic, :ok} =
-             cluster_call(cluster, n1, :mnesia, :create_table, [
+             cluster_call(cluster, first, :mnesia, :create_table, [
                table,
-               [attributes: [:key, :value], ram_copies: [n1, n2]]
+               [attributes: [:key, :value], ram_copies: workers]
              ])
 
-    for worker <- [n1, n2], do: assert(:ok = cluster_call(cluster, worker, :mnesia, :wait_for_tables, [[table], 5_000]))
+    for worker <- workers, do: assert(:ok = cluster_call(cluster, worker, :mnesia, :wait_for_tables, [[table], 5_000]))
     table
   end
 
