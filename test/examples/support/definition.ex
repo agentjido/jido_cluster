@@ -5,6 +5,8 @@ defmodule JidoCluster.Examples.Support.Definition do
   def build(module, id, placements) do
     definition = module.topology()
 
+    # Group 02 tests supply application placement policy explicitly. Rewrite a
+    # copy of the root declarations; keep the source module's definition intact.
     agents =
       Enum.map(definition.agents, fn agent ->
         Map.put(agent, :node, Map.get(placements, agent.key, agent.node))
@@ -12,6 +14,8 @@ defmodule JidoCluster.Examples.Support.Definition do
 
     attrs = definition |> Map.from_struct() |> Map.put(:agents, agents)
 
+    # Rebuild through core validation after selecting exact nodes. Location may
+    # change, but the same Topology ID still gives each Agent its logical ID.
     with {:ok, selected} <- Jido.Topology.new(attrs),
          do: Jido.Topology.instantiate(selected, id: id)
   end
