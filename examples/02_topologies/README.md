@@ -16,7 +16,7 @@ Run the complete section:
 mise exec -- mix test test/examples/02_topologies --only example --seed 0
 ```
 
-Each lesson also has a `mix run` demo. Read the lessons in order. Shared code is limited to a counter, definition construction, and local host setup. Tests use only `:example`, including the three-node recovery case.
+Read the lessons in order. Definitions use a [shared counter](support/counter.ex). Runnable proofs live in `test/examples/02_topologies/`. Their [definition builder](../../test/examples/support/definition.ex) and [Topology setup](../../test/examples/support/topology_case.ex) are test fixtures. General node setup stays in [ClusterCase](../../test/support/cluster_case.ex). Tests use only `:example`, including the three-node recovery case.
 
 Return to the [catalog](../README.md).
 

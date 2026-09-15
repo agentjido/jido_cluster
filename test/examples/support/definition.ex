@@ -1,5 +1,5 @@
-defmodule Jido.Cluster.Examples.Topologies.Definition do
-  @moduledoc "Sets selected exact nodes in a core definition before common validation."
+defmodule JidoCluster.Examples.Support.Definition do
+  @moduledoc false
   @doc "Builds a core instance with exact placement for root singleton Agents."
   @spec build(module(), String.t(), map()) :: {:ok, Jido.Topology.Instance.t()} | {:error, term()}
   def build(module, id, placements) do

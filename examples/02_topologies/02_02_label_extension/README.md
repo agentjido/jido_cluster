@@ -4,28 +4,26 @@ A static cluster_worker declaration requests compute capacity. Runtime policy se
 
 ## Read the code
 
-1. [Topology definition](topology.ex).
-2. [Executable demo](demo.exs).
-3. [Counter](../support/counter.ex) and [exact-node definition builder](../support/definition.ex).
-4. [Local host setup](../support/local_nodes.ex).
-5. [Public API test](../../../test/examples/02_topologies/02_02_label_extension/label_extension_test.exs) and [shared test setup](../../../test/support/topology_case.ex).
+1. [Topology definition](topology.ex) and [shared counter](../support/counter.ex).
+2. [Runnable test case](../../../test/examples/02_topologies/02_02_label_extension/label_extension_test.exs).
+3. [Test definition builder](../../../test/examples/support/definition.ex) and [Topology setup](../../../test/examples/support/topology_case.ex).
+4. [General node setup](../../../test/support/cluster_case.ex).
 
 ## Run
 
 Run from `jido_cluster` with the sibling V3 dependencies. No credentials are needed.
 
 ```sh
-mise exec -- mix run examples/02_topologies/02_02_label_extension/demo.exs
 mise exec -- mix test test/examples/02_topologies/02_02_label_extension --only example --seed 0
 ```
 
-Expected demo fields: `required_labels: ["compute"], worker_remote: true, count: 1` and `nodes_stopped: true`.
+Expected assertions: The definition retains its compute label requirement. Selection starts the worker on the matching remote node, where one command commits count 1. Missing capacity returns an error.
 
 ## Behavior and cleanup
 
 The Spark extension implements `Jido.Topology.Extension`. It adds ordinary Agents and stores requirements under `jido.cluster.requirements` metadata. It does not contact hosts or select nodes during lowering. The source definition stays unchanged. Empty labels fail before activation; missing capacity fails at selection.
 
-Each demo creates isolated loopback nodes with a unique cookie and a replicated RAM table. Recursive `after` blocks stop all hosts even after a failure. The tests assert Agent cleanup, and the shared peer case checks that controllers exit. RAM state disappears after all hosts stop.
+Each test creates isolated loopback nodes with a unique cookie and a replicated RAM table. Node cleanup is registered before remote setup can fail. The test checks Agent cleanup, and the shared peer case uses monitors to check that peer controllers exit. RAM state disappears after all hosts stop.
 
 ## Limits
 

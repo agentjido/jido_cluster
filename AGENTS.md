@@ -37,6 +37,8 @@
 - Distributed behavior should be covered in `test/jido_cluster/distributed/`.
 - Follow `examples/AGENTS.md` and `test/AGENTS.md` when adding living docs.
 - Mirror example source folders under `test/examples/` and use only `:example`.
+- Run examples through these test cases. Do not add separate `demo.exs` runners.
+- Keep setup used only by example tests in `test/examples/support/`.
 - Use `JidoCluster.Test.ClusterCase` for isolated local Erlang nodes and checked cleanup.
 - Use `JidoCluster.Test.Eventually` for bounded eventual assertions.
 

@@ -1,5 +1,5 @@
 defmodule JidoCluster.Examples.EligibleNodeTest do
-  use JidoCluster.Test.TopologyCase
+  use JidoCluster.Examples.Support.TopologyCase
   alias Jido.Cluster.Examples.EligibleNode
 
   test "policy selects the worker node and core activates the complete topology", c do

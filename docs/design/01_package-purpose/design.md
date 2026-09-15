@@ -117,7 +117,7 @@ Cluster lifecycle Signals can feed normal control Agents and Plugins. Use bounde
 | 6. Test dynamic hosts | Prove the same contracts with a local provider before a real deployment; inject Agent, host, owner-process, and parent-node loss separately |
 | 7. Add policy | Prove drain and rebalance failure stages, compatibility checks, and operator preview |
 
-Partition tests belong to `:peer`; public runnable demonstrations belong to `:example`. Keep test setup shared and use deterministic barriers. A cloud demonstration is optional and does not replace local failure tests.
+Partition tests belong to `:peer`; runnable example test cases belong to `:example` under `test/examples/`. Keep example-only setup in `test/examples/support/` and use deterministic barriers. A cloud example is optional and does not replace local failure tests.
 
 ## Outside the first scope
 

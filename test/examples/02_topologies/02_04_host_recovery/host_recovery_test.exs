@@ -1,5 +1,5 @@
 defmodule JidoCluster.Examples.HostRecoveryTest do
-  use JidoCluster.Test.TopologyCase
+  use JidoCluster.Examples.Support.TopologyCase
   alias Jido.Agent.Ref
   alias Jido.Cluster.Examples.HostRecovery
 

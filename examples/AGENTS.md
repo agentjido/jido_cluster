@@ -18,7 +18,7 @@ Each example must teach one main Jido Cluster capability. A stable example must:
 
 Keep only examples that teach a distinct Jido capability. Do not add a stable
 example for an application policy that only combines capabilities that the
-learning path already covers. Put that policy in a guide or a larger demo
+learning path already covers. Put that policy in a guide or a larger example
 unless the composition itself teaches a new Jido contract.
 
 Numbered groups below `99` are the stable learning path. Group `99_research`
@@ -156,7 +156,6 @@ examples/
       README.md
       example.ex            # Main Agent, Flow, or Topology definition
       worker.ex             # A first-class part of the lesson
-      demo.exs              # Optional executable demonstration
       support/              # Scaffolding used only by this example
       fixtures/             # JSON and other input data
 ```
@@ -183,9 +182,9 @@ Apply these placement rules:
   numbered example. Move the code to section support or `examples/support/`,
   based on the scope of reuse.
 - Keep fixture data beside its consumer in `fixtures/`.
-- Keep a section-level launcher at the section root only when it starts more
-  than one numbered example. Put other launchers in their numbered folder.
 - Mirror each numbered source folder under `test/examples/`.
+- Execute examples through tagged test cases in `test/examples/`. Do not add
+  separate `demo.exs` runners or a second copy of the test behavior.
 - Keep general node test helpers in `test/support/`. Keep helpers used only by
   example tests in `test/examples/support/`. Follow `test/AGENTS.md`.
 
@@ -252,7 +251,7 @@ Previous: [NN_MM Previous](../NN_MM_previous/README.md) | Next: [NN_MM Next](../
 A section README must give the learning order and a short description of each
 example. Do not copy detailed implementation text into the section README.
 
-Live provider demonstrations must be optional. The default example and its
+Live provider tests must be optional. The default example and its
 tests must not need network access or an API key. Never put credentials in
 source, state, Signals, Directives, fixtures, or test output.
 

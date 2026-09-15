@@ -38,4 +38,4 @@ Use the public manager and AgentServer APIs for assertions. Wait for a state con
 
 Use `JidoCluster.Test.ClusterCase, tag: :example` for examples that need nodes. These tests have only the `:example` tag. Do not also add `:peer`: ExUnit includes tags with OR semantics, which would put the example in the peer group.
 
-Mirror the source folder under `test/examples/`. Keep setup in the shared case, and keep the example focused on its public contract. See the [catalog](../examples/README.md) and [test instructions](../test/AGENTS.md).
+Mirror the source folder under `test/examples/`. Run the example through its tagged test case. Keep example-only setup in `test/examples/support/`, including the [Topology case](../test/examples/support/topology_case.ex). Keep general node setup in `test/support/`. Both support folders compile in the test environment. See the [catalog](../examples/README.md) and [test instructions](../test/AGENTS.md).

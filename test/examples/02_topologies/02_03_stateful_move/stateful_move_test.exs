@@ -1,5 +1,5 @@
 defmodule JidoCluster.Examples.StatefulMoveTest do
-  use JidoCluster.Test.TopologyCase
+  use JidoCluster.Examples.Support.TopologyCase
   alias Jido.Agent.Ref
   alias Jido.Cluster.Examples.StatefulMove
 

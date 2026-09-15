@@ -55,7 +55,7 @@ defmodule JidoCluster.MixProject do
     [preferred_envs: [examples: :test, "test.examples": :test, "test.peer": :test, "test.all": :test]]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "examples", "test/support"]
+  defp elixirc_paths(:test), do: ["lib", "examples", "test/support", "test/examples/support"]
   defp elixirc_paths(:dev), do: ["lib", "examples"]
   defp elixirc_paths(_), do: ["lib"]
 

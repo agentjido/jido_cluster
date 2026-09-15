@@ -1,5 +1,5 @@
 defmodule JidoCluster.Examples.BusLocalityTest do
-  use JidoCluster.Test.TopologyCase
+  use JidoCluster.Examples.Support.TopologyCase
   alias Jido.Cluster.Examples.BusLocality
 
   test "rejected remote placement keeps the local worker and Bus working", c do

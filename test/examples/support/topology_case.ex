@@ -1,14 +1,14 @@
-defmodule JidoCluster.Test.TopologyCase do
+defmodule JidoCluster.Examples.Support.TopologyCase do
   @moduledoc false
   import ExUnit.Assertions
   import JidoCluster.Test.ClusterCase
-  alias Jido.Cluster.Examples.Topologies.Definition
   alias Jido.Topology.Controller
+  alias JidoCluster.Examples.Support.Definition
 
   defmacro __using__(_opts) do
     quote do
       use JidoCluster.Test.ClusterCase, tag: :example
-      import JidoCluster.Test.TopologyCase
+      import JidoCluster.Examples.Support.TopologyCase
       alias Jido.Cluster.Examples.Topologies.Counter
       alias Jido.Cluster.Placement
       alias Jido.Topology.Controller

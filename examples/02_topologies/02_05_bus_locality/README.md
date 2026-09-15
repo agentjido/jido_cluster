@@ -4,28 +4,26 @@ A remote move is rejected before it breaks a worker subscription to a Controller
 
 ## Read the code
 
-1. [Topology definition](topology.ex).
-2. [Executable demo](demo.exs).
-3. [Counter](../support/counter.ex) and [exact-node definition builder](../support/definition.ex).
-4. [Local host setup](../support/local_nodes.ex).
-5. [Public API test](../../../test/examples/02_topologies/02_05_bus_locality/bus_locality_test.exs) and [shared test setup](../../../test/support/topology_case.ex).
+1. [Topology definition](topology.ex) and [shared counter](../support/counter.ex).
+2. [Runnable test case](../../../test/examples/02_topologies/02_05_bus_locality/bus_locality_test.exs).
+3. [Test definition builder](../../../test/examples/support/definition.ex) and [Topology setup](../../../test/examples/support/topology_case.ex).
+4. [General node setup](../../../test/support/cluster_case.ex).
 
 ## Run
 
 Run from `jido_cluster` with the sibling V3 dependencies. No credentials are needed.
 
 ```sh
-mise exec -- mix run examples/02_topologies/02_05_bus_locality/demo.exs
 mise exec -- mix test test/examples/02_topologies/02_05_bus_locality --only example --seed 0
 ```
 
-Expected demo fields: `remote_move_rejected: true, same_worker: true, bus_delivery_count: 1` and `nodes_stopped: true`.
+Expected assertions: Both placement policy and core reject the remote move. The worker keeps its PID. A local Bus publication commits count 1, and cleanup stops the worker and Bus.
 
 ## Behavior and cleanup
 
 Cluster policy checks locality before placement. Core also rejects the remote request. The worker keeps its PID, and publishing to the local Bus still increments its count. Cleanup stops the worker and Bus.
 
-Each demo creates isolated loopback nodes with a unique cookie and a replicated RAM table. Recursive `after` blocks stop all hosts even after a failure. The tests assert Agent cleanup, and the shared peer case checks that controllers exit. RAM state disappears after all hosts stop.
+Each test creates isolated loopback nodes with a unique cookie and a replicated RAM table. Node cleanup is registered before remote setup can fail. The test checks Agent cleanup, and the shared peer case uses monitors to check that peer controllers exit. RAM state disappears after all hosts stop.
 
 ## Limits
 
