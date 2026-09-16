@@ -2,7 +2,6 @@ defmodule JidoCluster.Test.ClusterCase do
   @moduledoc false
   use ExUnit.CaseTemplate
 
-  alias Jido.Cluster.{InstanceManager, Topology}
   import JidoCluster.Test.Eventually
 
   using opts do
@@ -38,6 +37,7 @@ defmodule JidoCluster.Test.ClusterCase do
         on_exit(fn -> stop_peer(peer) end)
         :ok = :peer.call(peer, :code, :add_paths, [:code.get_path()], 5_000)
         {:ok, _} = :peer.call(peer, Application, :ensure_all_started, [:jido_cluster], 10_000)
+        :ok = :peer.call(peer, JidoCluster.Test.Supervisor, :ensure_started, [])
         :ok = :peer.call(peer, :logger, :set_primary_config, [:level, :warning], 5_000)
         {worker, peer}
       end
@@ -51,7 +51,7 @@ defmodule JidoCluster.Test.ClusterCase do
     eventually(
       fn ->
         Enum.all?(cluster.nodes, fn worker ->
-          cluster_call(cluster, worker, Topology, :connected_nodes, []) == cluster.nodes
+          cluster_call(cluster, worker, Jido.Cluster, :connected_nodes, []) == cluster.nodes
         end)
       end,
       timeout: 5_000
@@ -63,7 +63,14 @@ defmodule JidoCluster.Test.ClusterCase do
   # The controller map is read locally. Calls use separate peer channels rather
   # than one GenServer that serializes all nodes' requests.
   def cluster_call(cluster, worker, module, function, args, timeout \\ 15_000) do
-    :peer.call(Map.fetch!(cluster.peers, worker), module, function, args, timeout)
+    case Map.fetch(cluster.peers, worker) do
+      {:ok, peer} ->
+        :peer.call(peer, module, function, args, timeout)
+
+      :error ->
+        {transport, entry} = Map.fetch!(cluster.transports, worker)
+        transport.call(entry, module, function, args, timeout)
+    end
   end
 
   def start_nodes(cluster, count) do
@@ -71,16 +78,6 @@ defmodule JidoCluster.Test.ClusterCase do
            "Use @tag cluster_nodes: #{count} to select this test's node count"
 
     cluster.nodes
-  end
-
-  def start_managers(cluster, workers, opts) do
-    for worker <- workers, do: assert({:ok, _} = cluster_call(cluster, worker, InstanceManager, :start, [opts]))
-  end
-
-  def await_members(cluster, worker, manager, expected) do
-    eventually(fn -> cluster_call(cluster, worker, InstanceManager, :members, [manager]) == Enum.sort(expected) end,
-      timeout: 5_000
-    )
   end
 
   def shared_table(cluster, n1, n2), do: shared_table(cluster, [n1, n2])
@@ -97,11 +94,6 @@ defmodule JidoCluster.Test.ClusterCase do
 
     for worker <- workers, do: assert(:ok = cluster_call(cluster, worker, :mnesia, :wait_for_tables, [[table], 5_000]))
     table
-  end
-
-  def key_on(manager, workers, owner) do
-    Enum.find(1..500, fn key -> Topology.owner_node(manager, key, Enum.sort(workers)) == owner end) ||
-      raise "No key found for requested owner #{inspect(owner)}"
   end
 
   def stop_node(cluster, worker), do: stop_peer(Map.fetch!(cluster.peers, worker))

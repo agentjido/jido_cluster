@@ -1,0 +1,3 @@
++S 2
+-start_epmd false
+-kernel inet_dist_use_interface {127,0,0,1}

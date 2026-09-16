@@ -15,11 +15,14 @@
 
 - Work on `v3-spike` for the V3 foundation.
 - Use the local sibling Jido V3 dependencies declared in `mix.exs`.
-- `archive/v2/` is retained reference code. Do not use it as the current contract.
 - Jido owns Agent execution, checkpoint encoding, and commit revisions.
+- Use `Jido.Persistence.Store` for journal byte I/O and core persistence adapters.
+  Cluster owns journal encoding, bounds, revision checks, and recovery policy.
 - Put cluster membership, placement, and activation lifetime in this package.
-- `Scheduler` supports root singleton Topologies, configured connected hosts, and per-Scheduler capacity. Do not claim global admission or automatic host replacement.
-- Keep one repair owner for a scheduled Topology. Use the public core Controller with manual repair; preserve uncertain source retirement.
+- Named Cluster instances own shared scope admission, journal intent, and recovery.
+- `Deployment` is internal and requires a scope-confirmed reservation and activation guard.
+- Do not add standalone managers, placement authorities, or legacy compatibility APIs.
+- Keep one repair owner for a deployed Topology. Use the public core Controller with manual repair; preserve uncertain source retirement.
 - Target Elixir `~> 1.18`.
 - Add `@moduledoc` for public modules.
 - Add `@doc` and `@spec` for public functions.
@@ -35,7 +38,9 @@
 
 ## Testing
 
-- Unit tests should mirror `lib/` structure.
+- Keep the public entry point in `lib/jido_cluster.ex` and supporting modules in
+  `lib/jido_cluster/`. Keep the public `Jido.Cluster` module namespace.
+- Unit tests should mirror `lib/jido_cluster/` under `test/jido_cluster/`.
 - Distributed behavior should be covered in `test/jido_cluster/distributed/`.
 - Follow `examples/AGENTS.md` and `test/AGENTS.md` when adding living docs.
 - Mirror example source folders under `test/examples/` and use only `:example`.
@@ -48,8 +53,8 @@
 
 Use Conventional Commits, for example:
 
-- `feat(instance_manager): add keyed cross-node call wrappers`
-- `fix(rebalancer): avoid migration on non-shared backends`
+- `feat(entity): add domain-key calls through a named scope`
+- `fix(recovery): retain uncertain host claims`
 - `test(cluster): add singleton race coverage across nodes`
 
 ## Release Hygiene

@@ -13,6 +13,20 @@ mise exec -- mix test.all
 
 `mix test` excludes `:skip`, `:peer`, and `:example`. Unit tests do not start peer nodes. `mix test.peer` selects the distributed tests. `mix test.examples` selects the living examples. `mix test.all` includes peer and example tests but keeps explicit skips excluded. CI runs all three groups as separate steps.
 
+The real Docker tests are explicit and are not part of `mix test.all`. Prepare
+the Linux worker image as described in the
+[Docker fixture guide](../test/fixtures/docker_host/README.md), then set
+`JIDO_CLUSTER_DOCKER_SOCKET` and `JIDO_CLUSTER_DOCKER_IMAGE`. Run:
+
+```sh
+mise exec -- mix test.docker
+mise exec -- mix test.examples.docker
+```
+
+These commands select the backend contract and all provider example runners,
+including the cumulative managed and attached Core modes. A missing Engine
+or image is a test failure, not a skipped acceptance result.
+
 ## Node test setup
 
 Use [ClusterCase](../test/support/cluster_case.ex) for local node tests:
@@ -30,12 +44,12 @@ end
 
 The default is two nodes. Each test gets unique node names and a random cookie. Nodes bind to loopback, use two schedulers, and start through Erlang `:peer` with a standard I/O control channel. The parent test process does not need a distributed node name. Code paths are copied and `jido_cluster` starts on each node. Setup waits for the public connected-node view before it returns.
 
-Each node has its own control channel. `cluster_call/6` can run from concurrent Tasks on different nodes without one shared call queue. Use `start_managers/3`, `await_members/4`, `shared_table/3`, and `stop_node/2` for the common operations. Peer boot and remote calls have bounded timeouts. Cleanup is registered before remote setup and uses process monitors to check that controllers stop, including after a failed test.
+Each node has its own control channel. `cluster_call/6` can run from concurrent Tasks on different nodes without one shared call queue. Use `shared_table/3` and `stop_node/2` for the common operations. Peer boot and remote calls have bounded timeouts. Cleanup is registered before remote setup and uses process monitors to check that controllers stop, including after a failed test.
 
-Use the public manager and AgentServer APIs for assertions. Wait for a state condition or monitor message. Do not use a fixed sleep as proof of completion. Replicated Mnesia RAM tables belong to each isolated node group and disappear when that group stops.
+Use the public Cluster and AgentServer APIs for assertions. Wait for a state condition or monitor message. Do not use a fixed sleep as proof of completion. Replicated Mnesia RAM tables belong to each isolated node group and disappear when that group stops.
 
 ## Example tests
 
 Use `JidoCluster.Test.ClusterCase, tag: :example` for examples that need nodes. These tests have only the `:example` tag. Do not also add `:peer`: ExUnit includes tags with OR semantics, which would put the example in the peer group.
 
-Mirror the source folder under `test/examples/`. Run the example through its tagged test case. Keep example-only setup in `test/examples/support/`, including the [Topology case](../test/examples/support/topology_case.ex). Keep general node setup in `test/support/`. Both support folders compile in the test environment. See the [catalog](../examples/README.md) and [test instructions](../test/AGENTS.md).
+Mirror the source folder under `test/examples/`. Run the example through its tagged test case. Keep example-only setup in `test/examples/support/`, including the [deployment fixture](../test/examples/support/deployment_case.ex). Keep general node setup in `test/support/`. Both support folders compile in the test environment. The example catalog is `examples/README.md`; test instructions are in `test/AGENTS.md`.

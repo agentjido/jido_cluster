@@ -1,15 +1,24 @@
 # Jido Cluster V3 usage rules
 
-Use `Jido.Cluster.InstanceManager` for keyed work on connected BEAM nodes.
-Use compatible Jido V3 packages. This development branch uses sibling paths.
+Define a named OTP instance with `use Jido.Cluster, otp_app: :my_app` and put
+it in the application supervision tree. Omit `:jido` to own a core instance,
+or supply an already running core through `:jido`.
 
-Start matching managers on worker nodes. Set a stable namespace and deployment
-quorum. Use shared `Jido.Persistence.Adapter` storage for node-loss recovery.
-Create the Mnesia table before starting a manager.
+Use core Topologies with `Jido.Cluster.Topology.Extension`. Deploy through
+`Jido.Cluster`; use `Jido.Cluster.Entity` for bounded domain-key workloads.
+Both use the same scope capacity, journal, drain, and recovery path.
 
-Send Signals through manager `call/4` or `cast/3`. Treat returned pids as temporary
-observations. A cast acknowledges enqueue only. A timeout has an unknown result;
-do not retry a Signal without an application policy for repeated work.
+Use `Jido.Persistence.Store` for journal bytes and core-owned adapters such as
+`Jido.Persistence.Mnesia`. Cluster owns the journal format and recovery policy.
+Configure the Cluster journal and core Agent persistence separately. The
+journal defaults to Bedrock; the application supplies its Repo and trusted
+registry. Explicit `journal: :memory` is temporary. Use stable namespace,
+scope, Topology IDs, and entity definition IDs across restarts.
 
-Do not use V2 `storage`, `handoff_mode`, `replication`, or lease options. The first
-V3 foundation rejects these options. Files in `archive/v2` are reference code.
+Use request tokens for deployment operations. Route business Signals through
+core Refs. A timeout is an unknown result, not permission to replay a Signal.
+An unreachable host is not proof of death. Reconcile saved intent before
+replacing an uncertain activation.
+
+Use compatible sibling Jido V3 dependencies for local integration. The
+internal deployment runtime is not a separate application-facing scheduler.

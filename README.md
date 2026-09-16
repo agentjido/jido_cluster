@@ -1,8 +1,8 @@
 # Jido Cluster V3
 
-`jido_cluster` is an alpha cluster runtime for keyed Agents and declared Topology placement on connected
-BEAM nodes. This branch is a local integration foundation. It is not ready for
-a Hex release or production use.
+`jido_cluster` is an alpha runtime for named Topology deployments, bounded
+domain-key entities on connected BEAM nodes. This branch is a local integration foundation. It is not ready for a
+Hex release or production use.
 
 ## Local setup
 
@@ -26,65 +26,76 @@ mise exec -- mix quality
 The `.tool-versions` file selects OTP 28 and Elixir 1.19. The normal test run excludes peer and example tests. Use `mix test.all`
 to run all active tests. CI checks out the sibling V3 repositories before it builds.
 
-## Start a manager
+## Guides
 
-Start the same configuration on each worker node:
+Start with the [V3 guide index](guides/README.md). It links to the named
+deployment, journal recovery, federated Signal, host provider, and entity
+guides. Each guide describes current behavior and links to a runnable
+example. The [example catalog](examples/README.md) lists every scenario.
+
+## Start a Cluster instance
 
 ```elixir
+defmodule MyApp.Cluster do
+  use Jido.Cluster, otp_app: :my_app
+end
+
 children = [
-  {Jido.Cluster.InstanceManager,
-   name: MyApp.ClusterManager,
-   agent: MyApp.CounterAgent,
-   namespace: "my-app/counters",
-   min_quorum_nodes: 2,
-   persistence: {Jido.Cluster.Storage.Mnesia, table: :cluster_agent_records}}
+  {MyApp.Cluster, namespace: "my-app", journal: :memory, pools: []}
 ]
 ```
 
-Create the Mnesia schema and replicated table before manager startup. The table
-must be a `set` with attributes `[:key, :value]` and `local_content: false`.
-The application selects RAM or disk copies and any Mnesia majority policy.
-For local tests, use `Jido.Persistence.ETS` instead of shared storage.
+This starts a named scope and its local core Jido instance. Add configured
+hosts before deploying work. Use `jido: MyApp.Core` to attach to a core that
+your application already owns. Memory storage is for local use; configure
+durable storage before relying on restart recovery.
 
-Route Signals by logical key:
+## Named deployment and entity scopes
 
-```elixir
-alias Jido.Cluster.InstanceManager
+`use Jido.Cluster` defines a named scope. The scope admits declared Topologies
+and [entity workloads](examples/10_entities/README.md) against the same host
+claims and journal. An entity key maps to one versioned core Topology ID and
+Ref. `Jido.Cluster.Entity.ensure/3` admits its first activation; `lookup/3`
+does not start one. `call/5` waits for readiness and sends the Signal once.
+The scope supports up to eight running entity identities and retains stopped
+IDs in the journal.
 
-signal = Jido.Signal.new!("inc", %{}, source: "/my-app")
-{:ok, agent} = InstanceManager.call(MyApp.ClusterManager, {:account, "one"}, signal)
-{:ok, pid} = InstanceManager.lookup(MyApp.ClusterManager, {:account, "one"})
-snapshot = Jido.AgentServer.snapshot(pid)
-# %{agent: %Jido.Agent{}, state_version: revision}
-```
+Read [named deployments](guides/named-deployments.md) for the scope API and
+[journal recovery](guides/recovery.md) before you configure durable storage.
 
-`call/4` returns the committed V3 Agent. `cast/3` acknowledges enqueue only.
-`stop/2` stops the activation and keeps its record for recovery. A later `get/3`
-restores the checkpoint and commit revision when persistence is configured.
+## Durability
 
-## Foundation contract
+The Cluster journal stores the scope's deployment intent, claims, operation
+results, and host resource identity. It uses `Jido.Persistence.Store` and
+defaults to Bedrock with an application-owned Repo. Its stable identity is
+`{namespace, scope}`; it contains all admitted Topologies in that scope.
 
-The [connected Topology Scheduler](guides/placement.md) adds requirement selection, complete per-Topology admission, cooperative drain, and bounded worker repair. It uses the core Controller and reports host loss as uncertain. Start with the [placement examples](examples/03_placement/README.md).
-
-- Only nodes with a live manager participate in placement and quorum checks.
-- Rendezvous hashing chooses the current placement node for `{manager, key}`.
-- A connected-cluster lock serializes manager operations for each key.
-- Before work moves to a new connected owner, its prior activation is stopped.
-- Jido owns Action execution, Agent state, checkpoint encoding, and commit writes.
-- Quorum loss rejects new manager work and stops local activations.
-- Returned pids are temporary observations. Route writes through the manager.
-- A timeout can have an unknown result. Signals are never retried automatically.
-
-This connected BEAM view and lock do not provide a durable writer lease.
-Configure quorum for the fixed deployment and shared storage for recovery.
-The first foundation does not support live replicas, disconnected island leases,
-Postgres cluster adapters, or automatic periodic rebalancing. Old V2 options are
-rejected rather than silently accepted.
-
-See [the V3 foundation guide](guides/v3-foundation.md) for test coverage and next
-steps. The previous V2 implementation and tests are retained under `archive/v2/`.
-They are not compiled, tested, or packaged as current V3 code.
+Core Jido separately stores accepted Topology targets and Agent checkpoints.
+Set `:agent_persistence` for managed core, or configure persistence on an
+attached core. A durable Cluster journal alone does not persist Agent state.
+The stores can share one backend, but their records and commits are separate.
+See [journal and recovery](guides/recovery.md) for keys, setup, and failure rules.
 
 See the [living examples](examples/README.md) and [local node testing guide](guides/testing.md).
 
-The [design folder](docs/design/README.md) defines the proposed package purpose and its boundary with core V3. Proposals are separate from the current runtime contract.
+The [design folder](docs/design/README.md) records implementation evidence,
+proof limits, and proposals that still need review. Code and tests define
+current behavior.
+
+## Source layout
+
+The public entry point is `lib/jido_cluster.ex`. Supporting modules are under
+`lib/jido_cluster/`; their public namespace remains `Jido.Cluster`.
+
+- `instance/` coordinates named scopes, deployment operations, and recovery.
+- `admission.ex` and `drain.ex` manage shared claims and movement plans.
+- `journal/` encodes durable intent, host sessions, and recovery records.
+- `federation/` owns declared channels, transport, bindings, and their lifetime.
+- `host_provider/` defines host resource contracts and the Docker adapter.
+- `entity/` maps domain keys to core Topology identities without a second placement system.
+- `topology/` defines the core Topology extension.
+- `deployment.ex` and `deployment/` execute scope-confirmed placement and cleanup.
+  They are internal; applications use the named Cluster facade.
+
+Unit and peer tests are under `test/jido_cluster/`. Living example tests are
+under `test/examples/` and use the `:example` tag.

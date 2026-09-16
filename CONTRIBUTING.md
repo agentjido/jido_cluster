@@ -53,7 +53,7 @@ Use Conventional Commits:
 Examples:
 
 ```bash
-git commit -m "feat(rebalancer): add leader-only sync trigger for tests"
+git commit -m "feat(recovery): add explicit scope reconciliation"
 git commit -m "fix(storage): enforce expected_rev conflict handling"
 ```
 

@@ -10,6 +10,16 @@ defmodule JidoCluster.MixProject do
       version: @version,
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
+      test_ignore_filters: [
+        "test/fixtures/docker_host/mix.exs",
+        "test/jido_cluster/distributed/docker_acceptance.exs",
+        "test/examples/09_host_providers/09_01_acquired_topology/docker_acceptance.exs",
+        "test/examples/09_host_providers/09_02_lost_acquire_reply/docker_acceptance.exs",
+        "test/examples/09_host_providers/09_03_borrowed_and_incompatible/docker_acceptance.exs",
+        "test/examples/09_host_providers/09_04_release_guard/docker_acceptance.exs",
+        "test/examples/09_host_providers/09_05_abrupt_death_cleanup/docker_acceptance.exs",
+        "test/examples/11_system/11_02_provider_lifecycle/docker_acceptance.exs"
+      ],
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
@@ -20,34 +30,29 @@ defmodule JidoCluster.MixProject do
         main: "readme",
         extras: [
           {"README.md", filename: "readme"},
-          "guides/v3-foundation.md",
-          "guides/testing.md",
-          "guides/placement.md",
-          {"examples/README.md", filename: "examples"},
-          {"examples/AGENTS.md", filename: "example-instructions"},
-          {"test/AGENTS.md", filename: "test-instructions"},
-          {"examples/01_cluster/README.md", filename: "cluster-examples"},
-          {"examples/01_cluster/01_01_keyed_counter/README.md", filename: "keyed-counter"},
-          {"examples/02_topologies/README.md", filename: "topology-examples"},
-          {"examples/02_topologies/02_01_eligible_node/README.md", filename: "02-01-eligible-node"},
-          {"examples/02_topologies/02_02_label_extension/README.md", filename: "02-02-label-extension"},
-          {"examples/02_topologies/02_03_stateful_move/README.md", filename: "02-03-stateful-move"},
-          {"examples/02_topologies/02_04_host_recovery/README.md", filename: "02-04-host-recovery"},
-          {"examples/02_topologies/02_05_bus_locality/README.md", filename: "02-05-bus-locality"},
-          {"examples/03_placement/README.md", filename: "placement-examples"},
-          {"examples/03_placement/03_01_requirements/README.md", filename: "03-01-requirements"},
-          {"examples/03_placement/03_02_admission/README.md", filename: "03-02-admission"},
-          {"examples/03_placement/03_03_drain/README.md", filename: "03-03-drain"},
-          {"examples/03_placement/03_04_worker_recovery/README.md", filename: "03-04-worker-recovery"},
-          {"examples/03_placement/03_05_host_loss/README.md", filename: "03-05-host-loss"},
-          {"examples/03_placement/03_06_coordinator/README.md", filename: "03-06-coordinator"},
-          {"examples/03_placement/03_07_restart/README.md", filename: "03-07-restart"},
-          {"docs/design/01_package-purpose/README.md", filename: "design-01_package-purpose-readme"},
-          {"docs/design/01_package-purpose/alignment.md", filename: "design-01_package-purpose-alignment"},
-          {"docs/design/01_package-purpose/design.md", filename: "design-01_package-purpose-design"},
-          {"docs/design/01_package-purpose/lessons.md", filename: "design-01_package-purpose-lessons"},
-          {"docs/design/01_package-purpose/questions.md", filename: "design-01_package-purpose-questions"},
-          {"docs/design/README.md", filename: "design-design-readme"}
+          {"guides/README.md", filename: "guides"},
+          "guides/named-deployments.md",
+          "guides/recovery.md",
+          "guides/federated-signals.md",
+          "guides/host-providers.md",
+          "guides/entities.md",
+          "guides/testing.md"
+        ],
+        groups_for_extras: [Guides: ~r{^guides/}],
+        groups_for_modules: [
+          "Public API": [
+            Jido.Cluster,
+            Jido.Cluster.Entity,
+            Jido.Cluster.Entity.Identity,
+            Jido.Cluster.HostProvider,
+            Jido.Cluster.HostProvider.Docker,
+            Jido.Cluster.HostProvider.Resource,
+            Jido.Cluster.HostProvider.Step,
+            Jido.Cluster.HostRuntime,
+            Jido.Cluster.Placement,
+            Jido.Cluster.Topology.Extension
+          ],
+          "Runtime internals": ~r{^Jido\.Cluster\.}
         ],
         filter_modules: fn module, _ ->
           not String.starts_with?(Atom.to_string(module), "Elixir.Jido.Cluster.Examples.")
@@ -62,10 +67,21 @@ defmodule JidoCluster.MixProject do
   end
 
   def cli do
-    [preferred_envs: [examples: :test, "test.examples": :test, "test.peer": :test, "test.all": :test]]
+    [
+      preferred_envs: [
+        examples: :test,
+        "test.examples": :test,
+        "test.peer": :test,
+        "test.all": :test,
+        "test.docker": :test,
+        "test.examples.docker": :test
+      ]
+    ]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "examples", "test/support", "test/examples/support"]
+  defp elixirc_paths(:test),
+    do: ["lib", "examples", "test/support", "test/examples/support", "test/fixtures/docker_host/lib"]
+
   defp elixirc_paths(:dev), do: ["lib", "examples"]
   defp elixirc_paths(_), do: ["lib"]
 
@@ -76,6 +92,10 @@ defmodule JidoCluster.MixProject do
       {:jido_signal, "~> 3.0.0-beta.4", path: "../jido_signal", override: true},
       {:jido_action, "~> 3.0.0-beta.11", path: "../jido_action", override: true},
       {:spark, "~> 2.7"},
+      {:jason, "~> 1.4"},
+      {:req, "~> 0.7", optional: true},
+      {:bedrock, "~> 0.7.2", optional: true},
+      {:bedrock_raft, "~> 0.10.0", optional: true},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:doctor, "~> 0.21", only: :dev, runtime: false},
@@ -92,6 +112,14 @@ defmodule JidoCluster.MixProject do
       "test.examples": "test test/examples --only example --seed 0",
       "test.peer": "test test/jido_cluster/distributed --only peer --seed 0",
       "test.all": "test --include peer --include example --seed 0",
+      "test.docker": "test test/jido_cluster/distributed/docker_acceptance.exs --only peer --seed 0",
+      "test.examples.docker":
+        "test test/examples/09_host_providers/09_01_acquired_topology/docker_acceptance.exs " <>
+          "test/examples/09_host_providers/09_02_lost_acquire_reply/docker_acceptance.exs " <>
+          "test/examples/09_host_providers/09_03_borrowed_and_incompatible/docker_acceptance.exs " <>
+          "test/examples/09_host_providers/09_04_release_guard/docker_acceptance.exs " <>
+          "test/examples/09_host_providers/09_05_abrupt_death_cleanup/docker_acceptance.exs " <>
+          "test/examples/11_system/11_02_provider_lifecycle/docker_acceptance.exs --only example --seed 0",
       q: ["quality"],
       quality: ["format --check-formatted", "compile --warnings-as-errors", "credo --strict", "doctor --raise"]
     ]

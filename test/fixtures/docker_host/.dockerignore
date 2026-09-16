@@ -1,0 +1,6 @@
+**/_build
+**/deps
+**/.git
+**/.env
+**/.env.*
+**/erl_crash.dump

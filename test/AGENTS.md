@@ -9,6 +9,6 @@
 - Execute examples through their tagged test cases. Do not add separate `demo.exs` runners.
 - Use independent peer channels for concurrent requests from different nodes.
 - Register node cleanup before remote setup can fail. Use monitors and bounded timeouts to check cleanup.
-- Assert public manager or AgentServer results. Use state barriers or monitor messages. A fixed sleep does not prove completion.
+- Assert public Cluster or AgentServer results. Use state barriers or monitor messages. A fixed sleep does not prove completion.
 - Run `mix test`, `mix test.peer`, and `mix test.examples` for separate groups. Run `mix test.all` for all active tests before a runtime commit.
 - Keep README claims and tests in the same change. Follow [example instructions](../examples/AGENTS.md).

@@ -1,7 +1,8 @@
 # Jido Cluster example instructions
 
-This pattern is adapted from the sibling `jido/examples/AGENTS.md`.
-Keep the authoring and test rules aligned with core Jido.
+Adapted from core `jido/examples/AGENTS.md`, reviewed at core revision `01863527`.
+Keep the authoring and test rules aligned with core Jido. Cluster retains tagged
+ExUnit runners, its own namespaces, and its distributed cleanup requirements.
 
 The examples are a first-class learning resource and a living integration test
 suite. Apply these instructions to all files under `examples/`.
@@ -318,3 +319,14 @@ For each section review:
 8. After removal or renumbering, delete empty folders and verify that source
    folders, test folders, and README links still match.
 9. Report guideline gaps and lessons that can improve these instructions.
+
+## Cluster acceptance plans
+
+Follow the [example test method](../docs/design/00_architecture/example-testing.md)
+and the scenario matrix in the relevant slice plan. Planned examples are not
+current coverage. Add source, README, and test together when the contract works.
+
+For peer examples, use `JidoCluster.Test.ClusterCase, tag: :example`; do not also
+add `:peer`. Use only `:example` because ExUnit include tags use OR semantics.
+Keep real-provider prerequisites explicit. Fake-provider results do not establish
+real resource cleanup, and unavailable integrations must not be reported as passed.

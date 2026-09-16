@@ -70,3 +70,49 @@ jobs:
       - name: Run example tests
         working-directory: jido_cluster
         run: mix test.examples
+
+  docker-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JIDO_CLUSTER_DOCKER_SOCKET: /var/run/docker.sock
+      JIDO_CLUSTER_DOCKER_IMAGE: jido-cluster-test-worker:local
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: jido_cluster
+      - uses: actions/checkout@v4
+        with:
+          repository: agentjido/jido
+          ref: release/v3
+          path: jido
+      - uses: actions/checkout@v4
+        with:
+          repository: agentjido/jido_action
+          ref: release/v3
+          path: jido_action
+      - uses: actions/checkout@v4
+        with:
+          repository: agentjido/jido_signal
+          ref: release/v3
+          path: jido_signal
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+      - name: Install test dependencies
+        working-directory: jido_cluster
+        run: mix deps.get
+        env:
+          MIX_ENV: test
+      - name: Build prepared worker image
+        working-directory: jido_cluster
+        run: |
+          python3 test/fixtures/docker_host/prepare.py --output "$RUNNER_TEMP/jido-cluster-docker-build"
+          docker build --tag "$JIDO_CLUSTER_DOCKER_IMAGE" "$RUNNER_TEMP/jido-cluster-docker-build"
+      - name: Run real backend acceptance
+        working-directory: jido_cluster
+        run: mix test.docker
+      - name: Run real provider examples
+        working-directory: jido_cluster
+        run: mix test.examples.docker

@@ -1,9 +1,9 @@
 defmodule JidoCluster.Topology.ExtensionTest do
   use ExUnit.Case, async: true
-  alias Jido.Cluster.Examples.LabelExtension
   alias Jido.Cluster.Topology.Extension
   alias Jido.Cluster.Topology.Extension.Worker
   alias Jido.Topology.Codec
+  alias JidoCluster.Test.LabelTopology, as: LabelExtension
 
   test "lowering retains core entries, metadata, and foreign entities without selecting a node" do
     original = %{agents: [%{key: :control, module: String}], metadata: %{purpose: "retained"}}
@@ -37,7 +37,7 @@ defmodule JidoCluster.Topology.ExtensionTest do
 
             topology do
               agents do
-                cluster_worker :worker, Jido.Cluster.Examples.Topologies.Counter, labels: [""]
+                cluster_worker :worker, JidoCluster.Test.TopologyCounter, labels: [""]
               end
             end
           end
