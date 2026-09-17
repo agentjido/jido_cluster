@@ -4,6 +4,10 @@
 domain-key entities on connected BEAM nodes. This branch is a local integration foundation. It is not ready for a
 Hex release or production use.
 
+The next sandbox-host proposal puts prepared BEAM nodes inside Fly Machines
+and Sprites. These adapters are not implemented yet; see the
+[sandbox host plan](docs/design/08_sandbox-hosts/README.md).
+
 ## Local setup
 
 Use the sibling V3 checkouts:

@@ -27,6 +27,7 @@ then plan each slice in its own folder. Current runtime guarantees remain in the
 | [05_federation-lifecycle](05_federation-lifecycle/README.md) | S5 planning entry point |
 | [06_host-providers](06_host-providers/README.md) | S6 planning entry point |
 | [07_entity-capabilities](07_entity-capabilities/README.md) | S7 planning entry point |
+| [08_sandbox-hosts](08_sandbox-hosts/README.md) | S8 Fly and Sprites sandbox host proposal |
 | [90 Reference](90_reference/README.md) | Earlier proposals and dated alignment reviews |
 
 ## Folder convention
@@ -131,6 +132,8 @@ not approve each document. This table does not block already authorized work.
 | [06_host-providers/plan.md](06_host-providers/plan.md) | Pending approval |
 | [07_entity-capabilities/README.md](07_entity-capabilities/README.md) | Pending approval |
 | [07_entity-capabilities/plan.md](07_entity-capabilities/plan.md) | Pending approval |
+| [08_sandbox-hosts/README.md](08_sandbox-hosts/README.md) | Pending approval |
+| [08_sandbox-hosts/plan.md](08_sandbox-hosts/plan.md) | Pending approval |
 | [90_reference/01_package-purpose/README.md](90_reference/01_package-purpose/README.md) | Pending approval |
 | [90_reference/01_package-purpose/alignment.md](90_reference/01_package-purpose/alignment.md) | Pending approval |
 | [90_reference/01_package-purpose/design.md](90_reference/01_package-purpose/design.md) | Pending approval |
