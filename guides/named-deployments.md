@@ -111,7 +111,7 @@ reserved, active, and uncertain demand. A stop request does not erase its
 deployment record from the bounded journal.
 
 The current scope supports at most 16 deployment records, 32 canonical hosts,
-and 64 claims. It retains up to 64 request bindings per epoch and 16 unresolved
+and 1,024 claims. It retains up to 64 request bindings per epoch and 16 unresolved
 operations. These are control limits, not machine resource measurements.
 Read `status/1` for current limits and retention use. Read
 [journal and recovery](recovery.md) before you choose durable storage.

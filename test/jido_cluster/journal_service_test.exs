@@ -134,15 +134,19 @@ defmodule JidoCluster.JournalServiceTest do
   test "oversized admission fails before a write or an Agent start", c do
     start_supervised!({Service, c.options})
 
+    large = Map.new(1..4, fn index -> {"large_#{index}", String.duplicate("x", 1_000_000)} end)
+
     topology = %{
       c.topology
-      | definition: %{c.topology.definition | metadata: %{"large" => String.duplicate("x", 65_536)}}
+      | definition: %{c.topology.definition | metadata: large}
     }
 
     writes = JournalAdapter.writes(c.adapter)
 
-    assert {:error, {:aggregate_too_large, _, 65_536}} =
+    assert {:error, {:aggregate_too_large, _, limit}} =
              Cluster.deploy(Service, topology, request_id: Cluster.request_id(Service))
+
+    assert limit == Journal.limits().admission_bytes
 
     assert JournalAdapter.writes(c.adapter) == writes
     assert agents() == 0

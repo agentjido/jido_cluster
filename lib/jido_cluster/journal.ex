@@ -20,15 +20,15 @@ defmodule Jido.Cluster.Journal do
   alias Jido.Persistence.Store
 
   @limits %{
-    record_bytes: 98_304,
-    admission_bytes: 65_536,
+    record_bytes: 4_194_304,
+    admission_bytes: 4_000_000,
     deployments: 16,
     hosts: 32,
-    claims: 64,
+    claims: 1_024,
     unresolved_operations: 16,
     request_bindings: 64,
     depth: 32,
-    nodes: 10_000
+    nodes: 100_000
   }
   @fields ~w(type version namespace scope revision write_id record)
   defstruct [:store, :scope, :key, :record, :write_id, expected: :not_found, revision: 0, status: :ready]

@@ -92,7 +92,8 @@ for complete setup with Bedrock and Mnesia.
 
 No configuration silently selects memory storage. A missing registry or
 unavailable journal causes a startup or operation error. The journal has a
-98,304-byte record limit. Admission checks that limit before it starts work.
+4,194,304-byte record limit and a 4,000,000-byte admission limit. Admission
+checks the smaller limit before it starts work.
 
 ## Read an uncertain result
 

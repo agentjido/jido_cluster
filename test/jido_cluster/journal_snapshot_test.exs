@@ -144,11 +144,12 @@ defmodule JidoCluster.JournalSnapshotTest do
   end
 
   test "admission bytes leave space for bounded observations", c do
-    large = String.duplicate("a", Journal.limits().admission_bytes)
+    large = Map.new(1..4, fn index -> {"large_#{index}", String.duplicate("a", 1_000_000)} end)
     topology = c.state.deployments["worker-set"].instance
-    topology = %{topology | definition: %{topology.definition | metadata: %{"large" => large}}}
+    topology = %{topology | definition: %{topology.definition | metadata: large}}
     state = put_in(c.state, [:deployments, "worker-set", :instance], topology)
-    assert {:error, {:aggregate_too_large, _, 65_536}} = Snapshot.encode(state, c.registry)
+    assert {:error, {:aggregate_too_large, _, limit}} = Snapshot.encode(state, c.registry)
+    assert limit == Journal.limits().admission_bytes
     assert {:ok, _} = Snapshot.encode(state, c.registry, :observation)
     reason = {:lost, self(), make_ref(), String.duplicate("x", 100_000)}
     state = put_in(c.state, [:operations, "deploy", :reason], reason)
@@ -199,7 +200,12 @@ defmodule JidoCluster.JournalSnapshotTest do
   test "record counts and unresolved operations have independent hard bounds", c do
     {:ok, document} = Snapshot.encode(c.state, c.registry)
 
-    for {field, limit} <- [{"deployments", 16}, {"claims", 64}, {"requests", 64}, {"hosts", 32}] do
+    for {field, limit} <- [
+          {"deployments", Journal.limits().deployments},
+          {"claims", Journal.limits().claims},
+          {"requests", Journal.limits().request_bindings},
+          {"hosts", Journal.limits().hosts}
+        ] do
       changed = Map.put(document, field, List.duplicate(hd(document[field]), limit + 1))
       assert {:error, {:invalid_snapshot, :collection_limit}} = Snapshot.decode(changed, c.config, c.registry)
     end
@@ -226,6 +232,39 @@ defmodule JidoCluster.JournalSnapshotTest do
     assert {:ok, restored} = Snapshot.decode(document, fixture.config, fixture.registry)
     assert restored.requests == fixture.state.requests
     assert restored.ledger == fixture.state.ledger
+  end
+
+  test "one thousand active Agent claims survive an admission snapshot", c do
+    base = c.state.deployments["worker-set"]
+
+    agents =
+      for index <- 1..1_000 do
+        %{key: "worker_#{index}", module: Worker}
+      end
+
+    definition = Jido.Topology.new!(%{base.instance.definition | agents: agents, metadata: %{}})
+    instance = Jido.Topology.unwrap!(Jido.Topology.instantiate(definition, id: "worker-set"))
+    selected = Map.new(agents, &{&1.key, :source})
+    config = %{c.config | hosts: [host(:source, 1_000)]}
+    {:ok, ledger} = Admission.new({config.namespace, config.scope}, config.hosts)
+    demand = Drain.demand(instance, config.namespace, selected)
+    {:ok, ledger} = Admission.reserve(ledger, instance.id, demand, "deploy")
+    {:ok, ledger, _} = Admission.bind_host(ledger, "deploy", :source, "source-incarnation")
+    ledger = Admission.mark(ledger, "deploy", :active)
+    deployment = %{base | instance: instance, selected: selected}
+
+    state = %{
+      c.state
+      | config: config,
+        ledger: ledger,
+        deployments: %{instance.id => deployment}
+    }
+
+    assert {:ok, document} = Snapshot.encode(state, c.registry)
+    assert length(document["claims"]) == 1_000
+    assert byte_size(Jason.encode!(document)) < Journal.limits().admission_bytes
+    assert {:ok, restored} = Snapshot.decode(document, config, c.registry)
+    assert length(Admission.claims(restored.ledger)) == 1_000
   end
 
   defp host(node, capacity \\ 1),

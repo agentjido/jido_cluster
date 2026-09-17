@@ -145,15 +145,16 @@ atomicity and discovery proof.
 
 ## S3 implementation decisions
 
-Implementation is starting. These are target limits, not completed evidence.
+The current implementation uses the limits below. Earlier measurements in this
+plan used the smaller initial bounds and remain historical evidence.
 The scope aggregate uses JSON with a versioned header and an exact-byte CAS
 condition or the opaque token returned by the adapter. Every successful write
 advances its revision and records a new write ID. Stored data cannot construct
 atoms, modules, PIDs, functions, or references.
 
-- CL-JOURNAL-REQ-101: The journal shall reject an encoded record above 98304 bytes before calling the adapter.
-- CL-JOURNAL-REQ-102: The admission service shall reject new work whose candidate aggregate exceeds 65536 bytes.
-- CL-JOURNAL-REQ-103: The service shall limit each aggregate to 16 deployments, 32 hosts, 64 claims, 16 unresolved operations, and 64 total request bindings per retention epoch.
+- CL-JOURNAL-REQ-101: The journal shall reject an encoded record above 4194304 bytes before calling the adapter.
+- CL-JOURNAL-REQ-102: The admission service shall reject new work whose candidate aggregate exceeds 4000000 bytes.
+- CL-JOURNAL-REQ-103: The service shall limit each aggregate to 16 deployments, 32 hosts, 1024 claims, 16 unresolved operations, and 64 total request bindings per retention epoch.
 - CL-JOURNAL-REQ-104: While a write result is unknown or conflicting, the journal shall reject another write through that handle until storage has been read again.
 - CL-JOURNAL-REQ-105: Before recovery submits an external effect, the service shall confirm a new journal revision through CAS.
 - CL-JOURNAL-REQ-106: When a durable deployment is encoded, the service shall resolve definition and input identifiers through the application-supplied trusted registry.
@@ -182,7 +183,7 @@ does not write or submit an external effect. A test delays the original CAS,
 confirms a recovery revision, then proves the delayed write conflicts.
 
 The journal rejects runtime values, non-string object keys, unsupported headers,
-scope mismatches, and records above 98304 bytes. The 65536-byte admission limit
+scope mismatches, and records above 4194304 bytes. The 4000000-byte admission limit
 and aggregate count/retention limits are still service work, not enforced by
 this storage component alone.
 
@@ -237,7 +238,7 @@ and restore as observation text. They do not select recovery actions.
 The reader resolves node names only from configured hosts. It rejects changed
 budgets, unknown definitions or Refs, duplicate identities, missing placement
 claims, repeated Ref reservations, unsupported fields, and count violations.
-The encoder applies the 65536-byte admission limit and 98304-byte observation
+The encoder applies the 4000000-byte admission limit and 4194304-byte observation
 limit with reserved envelope space. Portable fingerprints exclude the expanded
 runtime plan. The following service increment connects both contracts.
 
