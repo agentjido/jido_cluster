@@ -2,6 +2,7 @@ defmodule JidoCluster.Federation.RepairTest do
   use ExUnit.Case, async: false
   import JidoCluster.Test.Eventually
   alias Jido.Cluster
+  alias Jido.Cluster.Deployment.Owner
   alias Jido.Cluster.Federation.Mirror
   alias JidoCluster.Test.Federation.{DeclaredTopology, Subscriber}
   alias JidoCluster.Test.JournalAdapter
@@ -12,7 +13,7 @@ defmodule JidoCluster.Federation.RepairTest do
 
   setup do
     adapter = start_supervised!(JournalAdapter)
-    topology = DeclaredTopology.new!(id: "repair-listener")
+    topology = DeclaredTopology.new!(id: "repair-listener-#{System.unique_integer([:positive])}")
     journal = {JournalAdapter, server: adapter}
 
     opts = [
@@ -160,6 +161,14 @@ defmodule JidoCluster.Federation.RepairTest do
     assert length(Cluster.claims(Service)) == 1
     stop_supervised!(Service)
     eventually(fn -> not Process.alive?(c.agent) end)
+
+    # The uncertain cleanup keeps the owner alive. End that test process while
+    # the activation record keeps its uncertain state.
+    key = {Owner, "binding-repair", c.topology.id}
+    owner = :global.whereis_name(key)
+    assert is_pid(owner)
+    assert :ok = DynamicSupervisor.terminate_child(Jido.Cluster.OwnerSupervisor, owner)
+    eventually(fn -> :global.whereis_name(key) == :undefined end)
   end
 
   def hold_retirement(_, _, %{topology_id: id}, {id, observer}) do
