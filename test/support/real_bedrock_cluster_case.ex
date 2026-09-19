@@ -257,22 +257,17 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
   end
 
   defp layout_ready?(%{
+         epoch: epoch,
+         sequencer: sequencer,
          logs: logs,
-         services: services,
          proxies: proxies,
-         resolvers: resolvers,
-         shard_layout: shard_layout,
-         metadata_materializer: metadata_materializer,
-         shard_materializers: shard_materializers
+         resolvers: resolvers
        }) do
-    populated_map?(logs) and
-      populated_map?(services) and
+    is_integer(epoch) and epoch > 0 and
+      is_pid(sequencer) and
+      populated_map?(logs) and
       populated_list?(proxies) and
-      populated_list?(resolvers) and
-      populated_map?(shard_layout) and
-      is_pid(metadata_materializer) and
-      populated_map?(shard_materializers) and
-      shard_materializers_cover_layout?(shard_layout, shard_materializers)
+      populated_list?(resolvers)
   end
 
   defp layout_ready?(_), do: false
@@ -302,14 +297,6 @@ defmodule JidoCluster.Test.RealBedrockClusterCase do
     else
       _ -> false
     end
-  end
-
-  defp shard_materializers_cover_layout?(shard_layout, shard_materializers) do
-    shard_layout
-    |> Map.values()
-    |> Enum.map(fn {tag, _start_key} -> tag end)
-    |> Enum.uniq()
-    |> Enum.all?(&match?(pid when is_pid(pid), Map.get(shard_materializers, &1)))
   end
 
   defp populated_map?(value), do: is_map(value) and map_size(value) > 0
