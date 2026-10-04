@@ -4,8 +4,8 @@ defmodule JidoCluster.Distributed.HostProviderServiceTest do
   alias Jido.Cluster.HostProvider.{Resource, Step}
   alias Jido.Cluster.HostRuntime
   alias JidoCluster.Test.Bedrock
-  alias JidoCluster.Test.Federation.{DeclaredTopology, Subscriber}
-  alias JidoCluster.Test.{HostProvider, Instance, JournalAdapter}
+  alias JidoCluster.Test.Federation.DeclaredTopology
+  alias JidoCluster.Test.{CodecRegistry, HostProvider, Instance, JournalAdapter}
 
   test "acquisition precedes admission and release waits for Agent and binding cleanup", c do
     f = start(c)
@@ -367,6 +367,15 @@ defmodule JidoCluster.Distributed.HostProviderServiceTest do
     namespace = "provider-service/#{Jido.generate_id()}"
     jido = __MODULE__.Core
     {journal, persistence} = storage(c, control)
+    topology = DeclaredTopology.new!(id: "provider-listener")
+    event_registry = CodecRegistry.stable(Enum.map([:id, :type, :source, :data], &{:atom, &1}))
+
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology),
+        event_registry,
+        CodecRegistry.stable(Enum.map(c.cluster.nodes, &{:atom, &1}))
+      ])
 
     cores =
       for host <- c.cluster.nodes,
@@ -378,20 +387,16 @@ defmodule JidoCluster.Distributed.HostProviderServiceTest do
                {Jido,
                 name: jido,
                 namespace: if(host == worker, do: worker_namespace || namespace, else: namespace),
-                persistence: persistence}
+                persistence: persistence,
+                codec_registry: if(persistence, do: registry)}
              )}
 
     provider = child(c, control, {HostProvider, []})
-    topology = DeclaredTopology.new!(id: "provider-listener")
 
     options = [
       jido: jido,
       journal: if(is_pid(journal), do: {JournalAdapter, server: journal}, else: journal),
-      registry: %{
-        "schema/v1" => {:schema, topology.definition.schema},
-        "subscriber/v1" => {:agent, Subscriber},
-        "node" => {:atom, :node}
-      },
+      registry: registry,
       pools: [workers: [hosts: [%{node: worker, labels: ["compute"], capacity: 2, available: true}]]],
       host_providers: %{
         worker => [

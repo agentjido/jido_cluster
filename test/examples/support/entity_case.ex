@@ -6,6 +6,7 @@ defmodule JidoCluster.Examples.Support.EntityCase do
   alias Jido.Cluster
   alias Jido.Cluster.Entity
   alias Jido.Cluster.Examples.Entities.{Device, Scope}
+  alias JidoCluster.Test.CodecRegistry
 
   def start(context, inventories, opts \\ []) do
     [control | workers] = context.cluster.nodes
@@ -14,12 +15,20 @@ defmodule JidoCluster.Examples.Support.EntityCase do
     table = shared_table(context.cluster, context.cluster.nodes)
     jido = Scope.Core
     persistence = {Jido.Persistence.Mnesia, table: table}
+    {:ok, workload} = Entity.new(definition_id: "devices/v1", keyspace: "devices", agent: Device)
+    {:ok, topology} = Entity.topology(workload, {"devices", "registry"})
+
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology),
+        CodecRegistry.stable(Enum.map(context.cluster.nodes, &{:atom, &1}))
+      ])
 
     for host <- context.cluster.nodes do
       assert {:ok, _} =
                cluster_call(context.cluster, host, DynamicSupervisor, :start_child, [
                  JidoCluster.Test.Supervisor,
-                 {Jido, name: jido, namespace: namespace, persistence: persistence}
+                 {Jido, name: jido, namespace: namespace, persistence: persistence, codec_registry: registry}
                ])
     end
 

@@ -7,6 +7,7 @@ defmodule JidoCluster.Examples.Support.FederationLifecycleCase do
   alias Jido.Cluster.Federation.Mirror
   alias JidoCluster.Examples.Support.JournalReplyLoss
   alias JidoCluster.Test.Bedrock
+  alias JidoCluster.Test.CodecRegistry
 
   def start(c, topology, opts \\ []) do
     [control | workers] = c.cluster.nodes
@@ -25,19 +26,25 @@ defmodule JidoCluster.Examples.Support.FederationLifecycleCase do
     backend = {Jido.Persistence.Bedrock, repo: Bedrock.Repo}
     faults = if opts[:faults], do: child(c, control, {JournalReplyLoss, backend})
     journal = if faults, do: {JournalReplyLoss, server: faults}, else: backend
+    topology_instance = topology.new!(id: "registry")
+
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology_instance),
+        CodecRegistry.stable(Enum.map(c.cluster.nodes, &{:atom, &1}))
+      ])
 
     cores =
       for host <- c.cluster.nodes,
-          do: {host, child(c, host, {Jido, name: jido, namespace: namespace, persistence: persistence})}
+          do:
+            {host,
+             child(
+               c,
+               host,
+               {Jido, name: jido, namespace: namespace, persistence: persistence, codec_registry: registry}
+             )}
 
     guards = for host <- workers, do: {host, child(c, host, {Cluster.HostRuntime, jido: jido})}
-    definition = topology.new!(id: "registry").definition
-
-    registry = %{
-      "schema/v1" => {:schema, definition.schema},
-      "recorder/v1" => {:agent, Module.concat(topology, Recorder)},
-      "node" => {:atom, :node}
-    }
 
     hosts = for host <- workers, do: %{node: host, labels: ["compute"], capacity: 2, available: true}
     options = [jido: jido, journal: journal, registry: registry, pools: [workers: [hosts: hosts]]]

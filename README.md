@@ -64,6 +64,11 @@ does not start one. `call/5` waits for readiness and sends the Signal once.
 The scope supports up to eight running entity identities and retains stopped
 IDs in the journal.
 
+Declared workers and entity workloads can use compiled Agent modules or
+neutral `%Jido.Agent{}` definitions. Data-defined Agents still use only the
+trusted Actions, Flows, Plugins, schemas, and values in the configured codec
+registry.
+
 Read [named deployments](guides/named-deployments.md) for the scope API and
 [journal recovery](guides/recovery.md) before you configure durable storage.
 

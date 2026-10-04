@@ -2,6 +2,7 @@ defmodule JidoCluster.Examples.Support.DeploymentCase do
   @moduledoc false
   import ExUnit.Assertions
   import JidoCluster.Test.ClusterCase
+  alias JidoCluster.Test.CodecRegistry
 
   def start_deployment(c, topology, mode, extra \\ []) do
     [control, worker] = c.cluster.nodes
@@ -9,6 +10,8 @@ defmodule JidoCluster.Examples.Support.DeploymentCase do
     jido = Module.concat(service, Core)
     namespace = "deployment/#{System.unique_integer([:positive])}"
     persistence = Keyword.get(extra, :agent_persistence)
+    topology = topology.new!(id: "work")
+    registry = if persistence, do: CodecRegistry.for_topology(topology)
 
     # Core and its host protocol run on each worker. Remote host preparation is
     # explicit: starting the control instance cannot start another BEAM node.
@@ -18,7 +21,7 @@ defmodule JidoCluster.Examples.Support.DeploymentCase do
       assert {:ok, _} =
                cluster_call(c.cluster, host, DynamicSupervisor, :start_child, [
                  JidoCluster.Test.Supervisor,
-                 {Jido, name: jido, namespace: namespace, persistence: persistence}
+                 {Jido, name: jido, namespace: namespace, persistence: persistence, codec_registry: registry}
                ])
     end
 
@@ -30,7 +33,11 @@ defmodule JidoCluster.Examples.Support.DeploymentCase do
 
     hosts = [%{node: worker, labels: ["compute"], capacity: 2, available: true}]
     opts = [namespace: namespace, journal: :memory, pools: [workers: [hosts: hosts]]]
-    opts = if mode == :attached, do: Keyword.put(opts, :jido, jido), else: Keyword.merge(opts, extra)
+
+    opts =
+      if mode == :attached,
+        do: Keyword.put(opts, :jido, jido),
+        else: opts |> Keyword.merge(extra) |> Keyword.put(:registry, registry)
 
     assert {:ok, instance} =
              cluster_call(c.cluster, control, DynamicSupervisor, :start_child, [
@@ -45,7 +52,7 @@ defmodule JidoCluster.Examples.Support.DeploymentCase do
       jido: jido,
       instance: instance,
       namespace: namespace,
-      topology: topology.new!(id: "work")
+      topology: topology
     })
   end
 

@@ -12,12 +12,15 @@ defmodule Jido.Cluster.Examples.Entities.Device do
   routes do
     signal_source "/examples/entities/device"
 
-    route "examples.entities.device.record" do
+    route "examples.entities.device.record", as: :record do
       action %{event_id: event_id}, schema: Zoi.object(%{event_id: Zoi.string()}), context: context do
         {:ok, %{context.agent_state | count: context.agent_state.count + 1, last_event: event_id}}
       end
-
-      define :record, args: [:event_id]
     end
+  end
+
+  def record_signal!(event_id) do
+    {:ok, signal} = record_signal(%{event_id: event_id})
+    signal
   end
 end

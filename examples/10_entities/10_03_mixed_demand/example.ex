@@ -12,7 +12,7 @@ end
 
 defmodule Jido.Cluster.Examples.EntityMixedDemand.Occupant do
   @moduledoc "Declares the non-entity occupant in the same Cluster scope."
-  use Jido.Topology, name: "10_03_occupant", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_10_03_occupant", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

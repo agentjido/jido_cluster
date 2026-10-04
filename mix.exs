@@ -91,6 +91,8 @@ defmodule JidoCluster.MixProject do
       {:jido, "~> 3.0.0-beta.1", path: "../jido", override: true},
       {:jido_signal, "~> 3.0.0-beta.4", path: "../jido_signal", override: true},
       {:jido_action, "~> 3.0.0-beta.11", path: "../jido_action", override: true},
+      {:zoi,
+       git: "https://github.com/mikehostetler/zoi.git", ref: "ad24cc0644edb60d546c90a73a798856f0528820", override: true},
       {:spark, "~> 2.7"},
       {:jason, "~> 1.4"},
       {:req, "~> 0.7", optional: true},

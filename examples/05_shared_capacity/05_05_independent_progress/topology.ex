@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.IndependentProgress do
   @moduledoc "Keep separate capacity usable when a movement result is uncertain."
-  use Jido.Topology, name: "05_05_independent_progress", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_05_05_independent_progress", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

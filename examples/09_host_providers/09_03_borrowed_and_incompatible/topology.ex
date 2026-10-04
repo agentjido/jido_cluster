@@ -9,19 +9,22 @@ defmodule Jido.Cluster.Examples.BorrowedAndIncompatible.Recorder do
   routes do
     signal_source "/examples/host_providers/borrowed_and_incompatible"
 
-    route "examples.host_providers.borrowed_and_incompatible.record" do
+    route "examples.host_providers.borrowed_and_incompatible.record", as: :record do
       action _input, schema: Zoi.object(%{}), context: context do
         {:ok, %{context.agent_state | events: context.agent_state.events ++ [context.signal.id]}}
       end
-
-      define :record
     end
+  end
+
+  def record_signal! do
+    {:ok, signal} = record_signal(%{})
+    signal
   end
 end
 
 defmodule Jido.Cluster.Examples.BorrowedAndIncompatible do
   @moduledoc "Requires compatible capacity and preserves borrowed infrastructure."
-  use Jido.Topology, name: "09_03_borrowed_and_incompatible", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_09_03_borrowed_and_incompatible", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

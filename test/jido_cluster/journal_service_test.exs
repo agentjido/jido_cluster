@@ -231,5 +231,5 @@ defmodule JidoCluster.JournalServiceTest do
     journal
   end
 
-  defp agents, do: DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core)).active
+  defp agents, do: Jido.agent_count(Service.Core)
 end

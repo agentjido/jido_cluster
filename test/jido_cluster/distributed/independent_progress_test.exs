@@ -1,7 +1,7 @@
 defmodule JidoCluster.Distributed.IndependentProgressTest do
   use JidoCluster.Test.ClusterCase
   alias Jido.Cluster
-  alias JidoCluster.Test.{Instance, MovementBarrier}
+  alias JidoCluster.Test.{CodecRegistry, Instance, MovementBarrier}
   alias JidoCluster.Test.WorkerTopology, as: RequirementScheduling
 
   @tag cluster_nodes: 4
@@ -25,11 +25,21 @@ defmodule JidoCluster.Distributed.IndependentProgressTest do
     namespace = "independent-progress"
     table = shared_table(cluster, cluster.nodes)
 
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(RequirementScheduling.new!(id: "registry")),
+        CodecRegistry.stable(Enum.map(cluster.nodes, &{:atom, &1}))
+      ])
+
     for host <- cluster.nodes do
       assert {:ok, _} =
                cluster_call(cluster, host, DynamicSupervisor, :start_child, [
                  JidoCluster.Test.Supervisor,
-                 {Jido, name: jido, namespace: namespace, persistence: {Jido.Persistence.Mnesia, table: table}}
+                 {Jido,
+                  name: jido,
+                  namespace: namespace,
+                  persistence: {Jido.Persistence.Mnesia, table: table},
+                  codec_registry: registry}
                ])
     end
 
@@ -50,7 +60,7 @@ defmodule JidoCluster.Distributed.IndependentProgressTest do
             available: true
           }
 
-    options = [jido: jido, pools: [workers: [hosts: hosts]]] ++ storage(mode, table)
+    options = [jido: jido, pools: [workers: [hosts: hosts]]] ++ storage(mode, table, registry)
 
     assert {:ok, instance} =
              cluster_call(cluster, control, DynamicSupervisor, :start_child, [
@@ -201,18 +211,12 @@ defmodule JidoCluster.Distributed.IndependentProgressTest do
     assert :ok = stop_node(cluster, source)
   end
 
-  defp storage(:memory, _table), do: [journal: :memory]
+  defp storage(:memory, _table, _registry), do: [journal: :memory]
 
-  defp storage(mode, table) when mode in [:journal, :source_loss] do
-    topology = RequirementScheduling.new!(id: "registry")
-
+  defp storage(mode, table, registry) when mode in [:journal, :source_loss] do
     [
       journal: {Jido.Persistence.Mnesia, table: table},
-      registry: %{
-        "schema/v1" => {:schema, topology.definition.schema},
-        "worker/v1" => {:agent, JidoCluster.Test.PlacementWorker},
-        "node" => {:atom, :node}
-      }
+      registry: registry
     ]
   end
 

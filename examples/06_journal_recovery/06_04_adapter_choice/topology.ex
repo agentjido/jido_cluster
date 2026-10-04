@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.JournalAdapterChoice do
   @moduledoc "Select a journal adapter independently of Agent storage."
-  use Jido.Topology, name: "06_04_adapter_choice", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_06_04_adapter_choice", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.TransitionCapacity do
   @moduledoc "Reserve target slots before movement and retry after capacity is released."
-  use Jido.Topology, name: "05_04_transition_capacity", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_05_04_transition_capacity", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

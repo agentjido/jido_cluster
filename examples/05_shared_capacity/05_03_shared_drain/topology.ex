@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.SharedDrain do
   @moduledoc "Drain all deployments from a shared host with stable Ref identity."
-  use Jido.Topology, name: "05_03_shared_drain", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_05_03_shared_drain", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

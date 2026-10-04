@@ -42,7 +42,7 @@ defmodule JidoCluster.Federation.JournalTest do
     assert is_binary(incarnation)
     activation = activation(stored)
     assert {:error, :not_found} = Mirror.lookup(Service.Core, activation, "events")
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 1
     arm(c, "ready", {:hold, self()})
     send(caller, {:release, token})
     assert_receive {:journal_written, caller, token}, 5000
@@ -136,7 +136,7 @@ defmodule JidoCluster.Federation.JournalTest do
     assert {:ok, %{binding_intent: %{"phase" => "stopped"}, agent_readiness: :stopped}} =
              Cluster.status(Service, c.topology.id)
 
-    assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 0
     assert Cluster.claims(Service) == []
   end
 
@@ -171,6 +171,6 @@ defmodule JidoCluster.Federation.JournalTest do
     {:ok, operation} = Cluster.stop(Service, c.topology.id, request_id: Cluster.request_id(Service))
     assert {:ok, %{phase: :completed}} = Cluster.await(Service, operation.id)
     assert Cluster.claims(Service) == []
-    assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 0
   end
 end

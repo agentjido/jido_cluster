@@ -9,12 +9,15 @@ defmodule Jido.Cluster.Examples.SharedCapacity.Worker do
   routes do
     signal_source "/examples/shared_capacity/worker"
 
-    route "examples.shared_capacity.worker.work" do
+    route "examples.shared_capacity.worker.work", as: :work do
       action _input, context: context do
         {:ok, %{context.agent_state | count: context.agent_state.count + 1}}
       end
-
-      define :work
     end
+  end
+
+  def work_signal! do
+    {:ok, signal} = work_signal(%{})
+    signal
   end
 end

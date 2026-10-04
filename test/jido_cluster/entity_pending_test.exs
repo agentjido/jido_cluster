@@ -4,6 +4,7 @@ defmodule JidoCluster.EntityPendingTest do
   alias Jido.Cluster
   alias Jido.Cluster.Entity
   alias JidoCluster.Examples.Support.StartBarrier
+  alias JidoCluster.Test.CodecRegistry
   alias JidoCluster.Test.TopologyCounter, as: Counter
   import JidoCluster.Test.Eventually
 
@@ -16,14 +17,19 @@ defmodule JidoCluster.EntityPendingTest do
     assert {:atomic, :ok} = :mnesia.create_table(table, attributes: [:key, :value], ram_copies: [node()])
     start_supervised!({StartBarrier, []})
     hosts = [%{node: node(), labels: [], capacity: 1, available: true}]
+    {:ok, workload} = Entity.new(definition_id: "devices/v1", keyspace: "devices", agent: Counter)
+    identity = {"devices", "held"}
+    {:ok, topology} = Entity.topology(workload, identity)
+    registry = CodecRegistry.for_topology(topology)
 
     start_supervised!(
       {Service,
-       journal: :memory, agent_persistence: {StartBarrier.Persistence, table: table}, pools: [workers: [hosts: hosts]]}
+       journal: :memory,
+       agent_persistence: {StartBarrier.Persistence, table: table},
+       registry: registry,
+       pools: [workers: [hosts: hosts]]}
     )
 
-    {:ok, workload} = Entity.new(definition_id: "devices/v1", keyspace: "devices", agent: Counter)
-    identity = {"devices", "held"}
     assert {:ok, first} = Entity.ensure(Service, workload, identity)
     eventually(fn -> GenServer.call(StartBarrier, :status).waiting == 1 end)
     assert {:error, :pending} = Entity.lookup(Service, workload, identity)

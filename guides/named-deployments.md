@@ -30,6 +30,28 @@ defmodule MyApp.Cluster do
 end
 ```
 
+`cluster_worker` accepts either a compiled Agent module or a neutral
+`%Jido.Agent{}` definition. Use `definition:` when an application library
+loads the Agent definition from data:
+
+```elixir
+@worker_definition MyApp.AgentLibrary.fetch!("workers/order-v1")
+
+topology do
+  agents do
+    cluster_worker :worker,
+      definition: @worker_definition,
+      labels: ["compute"]
+  end
+end
+```
+
+The two source forms are exclusive. Cluster keeps the neutral definition in
+the accepted Topology target. It does not create a generated Agent module.
+Before admission, each selected host validates all codec capabilities that
+the definition needs, including Actions, Flows, Plugins, schemas, and static
+values.
+
 Start `MyApp.Cluster` under your application supervisor. This example uses
 one local host and explicit memory storage. It is suitable for learning, not
 for recovery after a service restart:
@@ -53,6 +75,11 @@ worker before you deploy. The service does not start a remote BEAM node. See
 the [managed](../examples/04_deployment/04_01_managed_instance/README.md) and
 [attached](../examples/04_deployment/04_02_attached_instance/README.md) examples
 for full peer setup and cleanup.
+
+If those cores use persistence, all cores that can run a data-defined Agent
+must use the same stable codec registry. Cluster checks this before it confirms
+the host. A host with the required code but a different codec ID map is not
+compatible.
 
 ## Admit work and call an Agent
 

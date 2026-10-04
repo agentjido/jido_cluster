@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.UnknownJournalWrite do
   @moduledoc "Resolve a lost journal reply through the original request."
-  use Jido.Topology, name: "06_02_unknown_write", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_06_02_unknown_write", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

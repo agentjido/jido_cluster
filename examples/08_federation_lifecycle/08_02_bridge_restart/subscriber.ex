@@ -9,19 +9,22 @@ defmodule Jido.Cluster.Examples.BridgeRestart.Recorder do
   routes do
     signal_source "/examples/federation_lifecycle/bridge_restart"
 
-    route "examples.federation_lifecycle.bridge_restart.record" do
+    route "examples.federation_lifecycle.bridge_restart.record", as: :record do
       action _input, schema: Zoi.object(%{}), context: context do
         {:ok, %{context.agent_state | events: context.agent_state.events ++ [context.signal.id]}}
       end
-
-      define :record
     end
+  end
+
+  def record_signal! do
+    {:ok, signal} = record_signal(%{})
+    signal
   end
 end
 
 defmodule Jido.Cluster.Examples.BridgeRestart do
   @moduledoc "Declares a subscriber whose channel can be repaired at the same placement."
-  use Jido.Topology, name: "08_02_bridge_restart", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_08_02_bridge_restart", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

@@ -20,20 +20,23 @@ defmodule Jido.Cluster.Examples.BoundedPublication.Recorder do
   routes do
     signal_source "/examples/federation/bounded_publication"
 
-    route "examples.federation.bounded_publication.record" do
+    route "examples.federation.bounded_publication.record", as: :record do
       action _input, schema: Zoi.object(%{value: Zoi.integer()}), context: context do
         event = Map.take(context.signal, [:id, :type, :source, :data])
         {:ok, %{context.agent_state | events: context.agent_state.events ++ [event]}}
       end
-
-      define :record, args: [:value]
     end
+  end
+
+  def record_signal!(value) do
+    {:ok, signal} = record_signal(%{value: value})
+    signal
   end
 end
 
 defmodule Jido.Cluster.Examples.BoundedPublication do
   @moduledoc "Declares the scoped event channel and its required local subscribers."
-  use Jido.Topology, name: "07_03_bounded_publication", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_07_03_bounded_publication", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.UncertainJournalSource do
   @moduledoc "Retain uncertain source claims across service restart."
-  use Jido.Topology, name: "06_03_uncertain_source", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_06_03_uncertain_source", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

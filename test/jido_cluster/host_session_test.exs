@@ -144,7 +144,7 @@ defmodule JidoCluster.HostSessionTest do
     stop_supervised!(Service)
     start_supervised!({Service, opts})
     assert {:error, {:no_capacity, "worker"}} = Cluster.plan(Service, topology)
-    assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 0
     assert Cluster.claims(Service) == []
     assert HostProvider.calls(c.provider) == []
     stop_supervised!(Service)

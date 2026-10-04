@@ -43,7 +43,7 @@ defmodule JidoCluster.OperationUncertaintyTest do
                request_id: Cluster.request_id(Service)
              )
 
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(config.jido))
+    assert Jido.agent_count(config.jido) == 1
     assert {:ok, ^agent} = Jido.resolve_agent(config.jido, ref)
 
     {:ok, stop} = Cluster.stop(Service, topology.id, request_id: Cluster.request_id(Service))

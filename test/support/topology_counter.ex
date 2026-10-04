@@ -9,12 +9,15 @@ defmodule JidoCluster.Test.TopologyCounter do
   routes do
     signal_source("/examples/cluster/topologies/counter")
 
-    route "examples.cluster.topologies.increment" do
+    route "examples.cluster.topologies.increment", as: :increment do
       action _input, context: context do
         {:ok, %{context.agent_state | count: context.agent_state.count + 1}}
       end
-
-      define(:increment)
     end
+  end
+
+  def increment_signal! do
+    {:ok, signal} = increment_signal(%{})
+    signal
   end
 end

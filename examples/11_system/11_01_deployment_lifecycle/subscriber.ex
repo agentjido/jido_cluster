@@ -9,19 +9,22 @@ defmodule Jido.Cluster.Examples.DeploymentLifecycle.Recorder do
   routes do
     signal_source "/examples/system/deployment_lifecycle"
 
-    route "examples.system.deployment_lifecycle.record" do
+    route "examples.system.deployment_lifecycle.record", as: :record do
       action _input, schema: Zoi.object(%{}), context: context do
         {:ok, %{context.agent_state | events: context.agent_state.events ++ [context.signal.id]}}
       end
-
-      define :record
     end
+  end
+
+  def record_signal! do
+    {:ok, signal} = record_signal(%{})
+    signal
   end
 end
 
 defmodule Jido.Cluster.Examples.DeploymentLifecycle do
   @moduledoc "Declares a subscriber on the shared worker allocation."
-  use Jido.Topology, name: "11_01_deployment_lifecycle", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_11_01_deployment_lifecycle", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do
@@ -45,7 +48,7 @@ end
 
 defmodule Jido.Cluster.Examples.DeploymentLifecycle.Independent do
   @moduledoc "Declares a subscriber on the independent worker allocation."
-  use Jido.Topology, name: "11_01_independent", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_11_01_independent", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

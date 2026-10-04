@@ -56,8 +56,8 @@ defmodule Jido.Cluster.Instance.Config do
          {:ok, journal} <- journal(Keyword.get(opts, :journal, {Jido.Persistence.Bedrock, []})),
          {:ok, providers} <-
            ProviderConfig.new(Keyword.get(opts, :host_providers, %{}), hosts, journal),
-         {:ok, registry} <- registry(journal, Keyword.get(opts, :registry)),
          {:ok, persistence} <- Jido.Persistence.resolve_config(Keyword.get(opts, :agent_persistence), nil),
+         {:ok, registry} <- registry(journal, persistence, Keyword.get(opts, :registry)),
          {:ok, federation} <- Limits.new(Keyword.get(opts, :federation, [])),
          true <- mode == :managed or not Keyword.has_key?(opts, :agent_persistence) do
       {:ok,
@@ -137,15 +137,20 @@ defmodule Jido.Cluster.Instance.Config do
     end
   end
 
-  defp registry(:memory, nil), do: {:ok, nil}
-  defp registry(_, nil), do: {:error, {:invalid_registry, :required}}
+  defp registry(:memory, nil, nil), do: {:ok, nil}
+  defp registry(_journal, _persistence, nil), do: {:error, {:invalid_registry, :required}}
 
-  defp registry(_, value) do
-    case Jido.Codec.Registry.new(value) do
-      {:ok, registry} -> {:ok, registry}
+  defp registry(journal, persistence, value) do
+    with {:ok, registry} <- Jido.Codec.Registry.new(value),
+         :ok <- stable_registry(journal, persistence, registry) do
+      {:ok, registry}
+    else
       {:error, reason} -> {:error, {:invalid_registry, reason}}
     end
   end
+
+  defp stable_registry(:memory, nil, _registry), do: :ok
+  defp stable_registry(_journal, _persistence, registry), do: Jido.Codec.Registry.require_stable(registry)
 
   defp nonempty?(value), do: is_binary(value) and byte_size(value) > 0
 end

@@ -83,7 +83,7 @@ defmodule JidoCluster.Federation.RepairTest do
     on_exit(fn -> send(caller, {:release, token}) end)
     assert Process.alive?(c.agent)
     assert {:error, :not_found} = Mirror.lookup(Service.Core, c.activation, "events")
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 1
     send(caller, {:release, token})
     ready(c)
     assert {:ok, %{pid: agent}} = Cluster.lookup(Service, c.ref)
@@ -153,7 +153,7 @@ defmodule JidoCluster.Federation.RepairTest do
       assert agent == c.agent
       assert Cluster.claims(Service) == c.claims
       assert {:ok, c.completed} == Cluster.operation(Service, c.completed.id)
-      assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+      assert Jido.agent_count(Service.Core) == 1
     end
 
     {:ok, operation} = Cluster.stop(Service, c.topology.id, request_id: Cluster.request_id(Service))

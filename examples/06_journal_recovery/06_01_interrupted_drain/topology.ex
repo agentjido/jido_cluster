@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.InterruptedDrain do
   @moduledoc "Resume a recorded drain after coordinator loss."
-  use Jido.Topology, name: "06_01_interrupted_drain", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_06_01_interrupted_drain", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

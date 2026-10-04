@@ -2,6 +2,7 @@ defmodule JidoCluster.Examples.Support.SharedCapacityCase do
   @moduledoc false
   import ExUnit.Assertions
   import JidoCluster.Test.ClusterCase
+  alias JidoCluster.Test.CodecRegistry
 
   def start(c, topology, inventories) do
     [control | workers] = c.cluster.nodes
@@ -11,11 +12,21 @@ defmodule JidoCluster.Examples.Support.SharedCapacityCase do
     namespace = "shared-capacity/#{System.unique_integer([:positive])}"
     table = shared_table(c.cluster, c.cluster.nodes)
 
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology.new!(id: "registry")),
+        CodecRegistry.stable(Enum.map(c.cluster.nodes, &{:atom, &1}))
+      ])
+
     for host <- c.cluster.nodes do
       assert {:ok, _} =
                cluster_call(c.cluster, host, DynamicSupervisor, :start_child, [
                  JidoCluster.Test.Supervisor,
-                 {Jido, name: jido, namespace: namespace, persistence: {Jido.Persistence.Mnesia, table: table}}
+                 {Jido,
+                  name: jido,
+                  namespace: namespace,
+                  persistence: {Jido.Persistence.Mnesia, table: table},
+                  codec_registry: registry}
                ])
     end
 

@@ -83,10 +83,17 @@ cluster_options = [
 ```
 
 The application starts the Repo and creates the shared Mnesia table before
-the Cluster scope. Use stable registry IDs for every definition schema, Agent
-module, and input value that the scope will save. A managed scope passes
+the Cluster scope. Use stable registry IDs for every Agent behavior, Action,
+Flow, Plugin, schema, route match, atom, and static value that a stored
+definition or Agent state can contain. A data-defined Agent does not make an
+unknown module executable. Its complete trusted library must be present on
+every selected host.
+
+A stable registry is required when either the Cluster journal or managed
+Agent persistence is durable. This also applies when `journal: :memory` is
+combined with `:agent_persistence`. A managed scope passes the registry and
 `:agent_persistence` to its core. For an attached scope, configure persistence
-on the application-owned core instead. See the
+and the same registry on the application-owned core instead. See the
 [adapter example](../examples/06_journal_recovery/06_04_adapter_choice/README.md)
 for complete setup with Bedrock and Mnesia.
 

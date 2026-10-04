@@ -26,6 +26,7 @@ defmodule Jido.Cluster.HostRuntime do
   """
   use GenServer
   alias Jido.Cluster.HostProvider.Step
+  alias Jido.Codec.Registry, as: CodecRegistry
 
   @guard_fields [:owner, :owner_monitor, :scope, :control, :claims, :capacity, :retiring_step]
 
@@ -486,18 +487,42 @@ defmodule Jido.Cluster.HostRuntime do
     missing =
       Enum.find(
         Keyword.get(expected, :modules, []),
-        &(not Code.ensure_loaded?(&1) or not function_exported?(&1, :new, 0))
+        &(not compatible_agent_module?(&1))
       )
 
     services = Keyword.get(expected, :services, []) -- state.identity.services
+    definition_registry = validate_definition_registry(Keyword.get(expected, :definition_registry))
+    codec_registry = validate_codec_registry(state.jido, Keyword.get(expected, :codec_registry))
 
     cond do
       mismatch -> {:error, {:incompatible, mismatch}}
       missing -> {:error, {:missing_module, missing}}
+      definition_registry != :ok -> {:error, {:missing_definition_capability, definition_registry}}
+      codec_registry != :ok -> {:error, {:incompatible, :codec_registry}}
       services != [] -> {:error, {:missing_services, services}}
       true -> {:ok, state.identity}
     end
   end
+
+  defp compatible_agent_module?(module),
+    do: Code.ensure_loaded?(module) and function_exported?(module, :new, 0)
+
+  defp validate_definition_registry(nil), do: :ok
+
+  defp validate_definition_registry(registry) do
+    case CodecRegistry.new(registry) do
+      {:ok, _registry} -> :ok
+      {:error, reason} -> reason
+    end
+  end
+
+  defp validate_codec_registry(_jido, nil), do: :ok
+
+  defp validate_codec_registry(jido, %CodecRegistry{} = expected) do
+    if Jido.instance_codec_registry(jido) == expected, do: :ok, else: :error
+  end
+
+  defp validate_codec_registry(_jido, _expected), do: :error
 
   defp release,
     do: %{

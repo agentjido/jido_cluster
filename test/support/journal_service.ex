@@ -4,6 +4,7 @@ defmodule JidoCluster.Test.JournalService do
   import ExUnit.Assertions
   import JidoCluster.Test.Eventually
   alias Jido.Cluster
+  alias JidoCluster.Test.CodecRegistry
   alias JidoCluster.Test.PlacementWorker, as: Worker
   alias JidoCluster.Test.WorkerTopology, as: RequirementScheduling
 
@@ -50,7 +51,7 @@ defmodule JidoCluster.Test.JournalService do
       assert {:ok, %{id: id}} = Cluster.stop(__MODULE__, topology.id, request_id: stop_token)
       assert id == stop.id
       assert Cluster.claims(__MODULE__) == []
-      assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(__MODULE__.Core))
+      assert Jido.agent_count(__MODULE__.Core) == 0
     end)
 
     :ok
@@ -90,18 +91,18 @@ defmodule JidoCluster.Test.JournalService do
       assert %{agent: %{state: %{count: 1}}, state_version: 1} = Jido.AgentServer.snapshot(current)
       assert {:ok, %{phase: :completed}} = Cluster.enable_host(__MODULE__, node(), request_id: token)
       assert [%{ref: ^ref, state: :active}] = Cluster.claims(__MODULE__)
-      assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(__MODULE__.Core))
+      assert Jido.agent_count(__MODULE__.Core) == 1
     end)
 
     :ok
   end
 
   defp options(adapter, topology) do
-    registry = %{
-      "schema/v1" => {:schema, topology.definition.schema},
-      "worker/v1" => {:agent, Worker},
-      "node" => {:atom, :node}
-    }
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology),
+        Jido.Codec.Registry.new!(%{"node" => {:atom, :node}})
+      ])
 
     [
       journal: adapter,

@@ -22,7 +22,13 @@ defmodule Jido.Cluster.Instance do
   def init(config) do
     core =
       if config.mode == :managed do
-        [{Jido, name: config.jido, namespace: config.namespace, persistence: config.agent_persistence}]
+        [
+          {Jido,
+           name: config.jido,
+           namespace: config.namespace,
+           persistence: config.agent_persistence,
+           codec_registry: config.registry}
+        ]
       else
         []
       end

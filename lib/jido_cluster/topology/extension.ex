@@ -6,8 +6,13 @@ defmodule Jido.Cluster.Topology.Extension do
 
   defmodule Worker do
     @moduledoc "Static authoring value consumed by the cluster Topology extension."
-    @type t :: %__MODULE__{key: atom(), module: module(), labels: [String.t()]}
-    defstruct [:key, :module, :__spark_metadata__, labels: []]
+    @type t :: %__MODULE__{
+            key: atom(),
+            module: module() | nil,
+            definition: Jido.Agent.definition() | nil,
+            labels: [String.t()]
+          }
+    defstruct [:key, :module, :definition, :__spark_metadata__, labels: []]
   end
 
   defmodule Channel do
@@ -42,10 +47,11 @@ defmodule Jido.Cluster.Topology.Extension do
   @worker %Spark.Dsl.Entity{
     name: :cluster_worker,
     target: Worker,
-    args: [:key, :module],
+    args: [:key, {:optional, :module, nil}],
     schema: [
       key: [type: :atom, required: true],
-      module: [type: :atom, required: true],
+      module: [type: :atom],
+      definition: [type: :any],
       labels: [type: {:list, :string}, default: []]
     ]
   }
@@ -73,7 +79,7 @@ defmodule Jido.Cluster.Topology.Extension do
   end
 
   defp lower(config, workers, rest) do
-    agents = config.agents ++ Enum.map(workers, &%{key: &1.key, module: &1.module})
+    agents = config.agents ++ Enum.map(workers, &agent_entry/1)
     rules = Map.new(workers, &{Atom.to_string(&1.key), &1.labels})
     existing = Map.get(config.metadata, "jido.cluster.requirements", %{})
     metadata = Map.put(config.metadata, "jido.cluster.requirements", Map.merge(existing, rules))
@@ -83,4 +89,13 @@ defmodule Jido.Cluster.Topology.Extension do
     with {:ok, lowered} <- Declarations.lower(%{config | agents: agents, metadata: metadata}, channels, bindings),
          do: {:ok, lowered, rest}
   end
+
+  defp agent_entry(%Worker{key: key, module: nil, definition: definition}),
+    do: %{key: key, definition: definition}
+
+  defp agent_entry(%Worker{key: key, module: module, definition: nil}),
+    do: %{key: key, module: module}
+
+  defp agent_entry(%Worker{key: key, module: module, definition: definition}),
+    do: %{key: key, module: module, definition: definition}
 end

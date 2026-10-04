@@ -5,7 +5,8 @@ defmodule JidoCluster.Test.Federation.JournalContract do
   import JidoCluster.Test.Eventually
   alias Jido.Cluster
   alias Jido.Cluster.Federation.Mirror
-  alias JidoCluster.Test.Federation.{DeclaredTopology, Subscriber}
+  alias JidoCluster.Test.CodecRegistry
+  alias JidoCluster.Test.Federation.DeclaredTopology
 
   def exercise_bound(adapter) do
     base = DeclaredTopology.new!(id: "binding-bound")
@@ -29,11 +30,11 @@ defmodule JidoCluster.Test.Federation.JournalContract do
     opts = [
       journal: adapter,
       namespace: "federation-bound",
-      registry: %{
-        "schema/v1" => {:schema, topology.definition.schema},
-        "subscriber/v1" => {:agent, Subscriber},
-        "node" => {:atom, :node}
-      },
+      registry:
+        CodecRegistry.merge([
+          CodecRegistry.for_topology(topology),
+          Jido.Codec.Registry.new!(%{"node" => {:atom, :node}})
+        ]),
       pools: [workers: [hosts: [%{node: node(), capacity: 8, labels: ["compute"], available: true}]]]
     ]
 
@@ -60,7 +61,7 @@ defmodule JidoCluster.Test.Federation.JournalContract do
       {:ok, stop} = Cluster.stop(__MODULE__, topology.id, request_id: Cluster.request_id(__MODULE__))
       assert {:ok, %{phase: :completed}} = Cluster.await(__MODULE__, stop.id)
       for pid <- children, do: refute(Process.alive?(pid))
-      assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(__MODULE__.Core))
+      assert Jido.agent_count(__MODULE__.Core) == 0
       assert Cluster.claims(__MODULE__) == []
       %{bytes: bytes, bindings: 64}
     end)
@@ -68,15 +69,17 @@ defmodule JidoCluster.Test.Federation.JournalContract do
 
   def exercise(adapter, backend \\ nil) do
     topology = DeclaredTopology.new!(id: "backend-listener")
+    event_registry = CodecRegistry.stable(Enum.map([:id, :type, :source, :data], &{:atom, &1}))
 
     opts = [
       journal: adapter,
       agent_persistence: adapter,
-      registry: %{
-        "schema/v1" => {:schema, topology.definition.schema},
-        "subscriber/v1" => {:agent, Subscriber},
-        "node" => {:atom, :node}
-      },
+      registry:
+        CodecRegistry.merge([
+          CodecRegistry.for_topology(topology),
+          event_registry,
+          Jido.Codec.Registry.new!(%{"node" => {:atom, :node}})
+        ]),
       pools: [workers: [hosts: [%{node: node(), capacity: 1, labels: ["compute"], available: true}]]]
     ]
 
@@ -100,7 +103,7 @@ defmodule JidoCluster.Test.Federation.JournalContract do
 
     with_instance(opts, fn ->
       assert Cluster.status(__MODULE__).status == :reconciliation_required
-      assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(__MODULE__.Core))
+      assert Jido.agent_count(__MODULE__.Core) == 0
       assert :ok = Cluster.reconcile(__MODULE__)
 
       eventually(fn ->
@@ -129,7 +132,7 @@ defmodule JidoCluster.Test.Federation.JournalContract do
                Cluster.status(__MODULE__, topology.id)
 
       assert Cluster.status(__MODULE__).status == :ready
-      assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(__MODULE__.Core))
+      assert Jido.agent_count(__MODULE__.Core) == 0
       assert Cluster.claims(__MODULE__) == []
     end)
 

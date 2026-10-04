@@ -3,7 +3,7 @@ defmodule JidoCluster.EntityRecoveryTest do
 
   alias Jido.Cluster
   alias Jido.Cluster.Entity
-  alias JidoCluster.Test.JournalAdapter
+  alias JidoCluster.Test.{CodecRegistry, JournalAdapter}
   alias JidoCluster.Test.TopologyCounter, as: Counter
   import JidoCluster.Test.Eventually
 
@@ -25,10 +25,7 @@ defmodule JidoCluster.EntityRecoveryTest do
       namespace: namespace,
       journal: {JournalAdapter, server: journal},
       agent_persistence: persistence,
-      registry: %{
-        "schema/v1" => {:schema, topology.definition.schema},
-        "counter/v1" => {:agent, Counter}
-      },
+      registry: CodecRegistry.for_topology(topology),
       pools: [workers: [hosts: hosts]]
     ]
 
@@ -72,10 +69,7 @@ defmodule JidoCluster.EntityRecoveryTest do
        namespace: "entity-unknown/#{Jido.generate_id()}",
        journal: {JournalAdapter, server: journal},
        agent_persistence: {Jido.Persistence.Mnesia, table: table},
-       registry: %{
-         "schema/v1" => {:schema, topology.definition.schema},
-         "counter/v1" => {:agent, Counter}
-       },
+       registry: CodecRegistry.for_topology(topology),
        pools: [workers: [hosts: hosts]]}
     )
 
@@ -90,7 +84,7 @@ defmodule JidoCluster.EntityRecoveryTest do
              Entity.ensure(Service, workload, {"devices", "unknown"})
 
     assert [%{ref: ^ref, state: :active}] = Cluster.claims(Service)
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 1
     stop_supervised!(Service)
     assert {:atomic, :ok} = :mnesia.delete_table(table)
   end

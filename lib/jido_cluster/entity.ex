@@ -27,7 +27,7 @@ defmodule Jido.Cluster.Entity do
   @type t :: %__MODULE__{
           definition_id: String.t(),
           keyspace: String.t() | nil,
-          agent: module(),
+          agent: module() | Jido.Agent.definition(),
           requirements: [String.t()],
           initial_state: map()
         }
@@ -68,7 +68,7 @@ defmodule Jido.Cluster.Entity do
          {:ok, definition} <-
            Topology.new(%{
              name: workload.definition_id,
-             agents: [%{key: @agent_key, module: workload.agent, initial_state: workload.initial_state}],
+             agents: [agent_entry(workload.agent, workload.initial_state)],
              metadata: %{
                "jido.cluster.entity" => %{"version" => 1, "definition_id" => workload.definition_id},
                "jido.cluster.requirements" => %{@agent_key => workload.requirements}
@@ -143,7 +143,16 @@ defmodule Jido.Cluster.Entity do
       valid_agent?(agent) and valid_requirements?(requirements) and
         is_map(initial_state) and not is_struct(initial_state)
 
+  defp valid_agent?(%Jido.Agent{} = definition),
+    do: match?({:ok, _definition}, Jido.Agent.validate_definition(definition))
+
   defp valid_agent?(agent), do: is_atom(agent) and agent not in [nil, true, false]
+
+  defp agent_entry(%Jido.Agent{} = definition, initial_state),
+    do: %{key: @agent_key, definition: definition, initial_state: initial_state}
+
+  defp agent_entry(module, initial_state),
+    do: %{key: @agent_key, module: module, initial_state: initial_state}
 
   defp valid_requirements?(requirements),
     do: is_list(requirements) and Enum.all?(requirements, &(is_binary(&1) and &1 != ""))

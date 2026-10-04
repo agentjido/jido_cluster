@@ -6,7 +6,7 @@ defmodule JidoCluster.Examples.Support.JournalRecoveryCase do
   alias Jido.Cluster
   alias Jido.Cluster.Examples.JournalRecovery.Worker
   alias JidoCluster.Examples.Support.JournalReplyLoss
-  alias JidoCluster.Test.{Bedrock, MovementBarrier}
+  alias JidoCluster.Test.{Bedrock, CodecRegistry, MovementBarrier}
 
   def start(c, topology, backend \\ :bedrock, opts \\ []) do
     [control | workers] = c.cluster.nodes
@@ -17,11 +17,17 @@ defmodule JidoCluster.Examples.Support.JournalRecoveryCase do
     adapter = adapter(c, control, backend, table)
     persistence = {Jido.Persistence.Mnesia, table: table}
 
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology.new!(id: "registry")),
+        CodecRegistry.stable(Enum.map(c.cluster.nodes, &{:atom, &1}))
+      ])
+
     for host <- c.cluster.nodes do
       assert {:ok, _} =
                cluster_call(c.cluster, host, DynamicSupervisor, :start_child, [
                  JidoCluster.Test.Supervisor,
-                 {Jido, name: jido, namespace: namespace, persistence: persistence}
+                 {Jido, name: jido, namespace: namespace, persistence: persistence, codec_registry: registry}
                ])
     end
 
@@ -34,8 +40,6 @@ defmodule JidoCluster.Examples.Support.JournalRecoveryCase do
     end
 
     {journal, faults} = journal(c, control, adapter, opts[:lost_reply])
-    definition = topology.new!(id: "registry").definition
-    registry = %{"schema/v1" => {:schema, definition.schema}, "worker/v1" => {:agent, Worker}, "node" => {:atom, :node}}
     hosts = for host <- workers, do: %{node: host, capacity: 2, labels: ["compute"], available: true}
     options = [jido: jido, journal: journal, registry: registry, pools: [workers: [hosts: hosts]]]
 

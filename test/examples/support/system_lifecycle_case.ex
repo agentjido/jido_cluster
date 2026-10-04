@@ -15,6 +15,7 @@ defmodule JidoCluster.Examples.Support.SystemLifecycleCase do
   }
 
   alias JidoCluster.Test.{Bedrock, HostProvider}
+  alias JidoCluster.Test.CodecRegistry
 
   def start(c, mode, opts \\ [])
   def start(%{docker_options: _} = c, mode, opts), do: DockerSystemLifecycleCase.start(c, mode, opts)
@@ -38,10 +39,23 @@ defmodule JidoCluster.Examples.Support.SystemLifecycleCase do
     backend = {Jido.Persistence.Bedrock, repo: Bedrock.Repo}
     faults = child(c, control, {JournalReplyLoss, backend})
     external = if mode == :attached, do: c.cluster.nodes, else: c.cluster.nodes -- [control]
+    topology_instance = topology.new!(id: "registry")
+
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology_instance),
+        CodecRegistry.stable(Enum.map(c.cluster.nodes, &{:atom, &1}))
+      ])
 
     cores =
       for host <- external,
-          do: {host, child(c, host, {Jido, name: jido, namespace: namespace, persistence: persistence})}
+          do:
+            {host,
+             child(
+               c,
+               host,
+               {Jido, name: jido, namespace: namespace, persistence: persistence, codec_registry: registry}
+             )}
 
     hosts = [
       %{node: source, labels: ["shared"], capacity: 2, available: true, allocation: "shared"},
@@ -50,12 +64,6 @@ defmodule JidoCluster.Examples.Support.SystemLifecycleCase do
     ]
 
     {guards, provider, provider_config, borrowed} = host_setup(c, jido, namespace, hosts, opts[:providers])
-
-    registry = %{
-      "schema/v1" => {:schema, topology.new!(id: "registry").definition.schema},
-      "recorder/v1" => {:agent, Module.concat(topology, Recorder)},
-      "node" => {:atom, :node}
-    }
 
     options = [journal: {JournalReplyLoss, server: faults}, registry: registry, pools: [workers: [hosts: hosts]]]
     options = if provider, do: Keyword.put(options, :host_providers, provider_config), else: options

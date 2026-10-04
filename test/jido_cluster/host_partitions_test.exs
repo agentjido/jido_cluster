@@ -37,7 +37,7 @@ defmodule JidoCluster.HostPartitionsTest do
         pid
       end
 
-    assert %{active: 2} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(jido))
+    assert Jido.agent_count(jido) == 2
     assert %{allocations: %{"blue" => %{capacity: 1}, "green" => %{capacity: 1}}} = HostRuntime.status(host)
 
     {:ok, rejected} =
@@ -49,7 +49,7 @@ defmodule JidoCluster.HostPartitionsTest do
               reason: {:host_rejected, %{allocation: "blue", stage: :registration, reason: :scope_already_owned}}
             }} = Cluster.await(Conflict, rejected.id)
 
-    assert %{active: 2} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(jido))
+    assert Jido.agent_count(jido) == 2
 
     [first, second] = agents
     stop_supervised!(First)

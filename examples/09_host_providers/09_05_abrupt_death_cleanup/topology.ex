@@ -9,19 +9,22 @@ defmodule Jido.Cluster.Examples.AbruptDeathCleanup.Recorder do
   routes do
     signal_source "/examples/host_providers/abrupt_death_cleanup"
 
-    route "examples.host_providers.abrupt_death_cleanup.record" do
+    route "examples.host_providers.abrupt_death_cleanup.record", as: :record do
       action _input, schema: Zoi.object(%{}), context: context do
         {:ok, %{context.agent_state | events: context.agent_state.events ++ [context.signal.id]}}
       end
-
-      define :record
     end
+  end
+
+  def record_signal! do
+    {:ok, signal} = record_signal(%{})
+    signal
   end
 end
 
 defmodule Jido.Cluster.Examples.AbruptDeathCleanup do
   @moduledoc "Recovers recorded host cleanup without deleting other resources."
-  use Jido.Topology, name: "09_05_abrupt_death_cleanup", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_09_05_abrupt_death_cleanup", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

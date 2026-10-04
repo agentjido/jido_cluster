@@ -1,7 +1,7 @@
 defmodule JidoCluster.Distributed.SharedDrainTest do
   use JidoCluster.Test.ClusterCase
   alias Jido.Cluster
-  alias JidoCluster.Test.{Instance, MovementBarrier}
+  alias JidoCluster.Test.{CodecRegistry, Instance, MovementBarrier}
   alias JidoCluster.Test.PlacementWorker, as: Worker
   alias JidoCluster.Test.WorkerTopology, as: RequirementScheduling
 
@@ -37,11 +37,21 @@ defmodule JidoCluster.Distributed.SharedDrainTest do
     table = shared_table(cluster, cluster.nodes)
     persistence = if mode == :volatile_recovery, do: nil, else: {Jido.Persistence.Mnesia, table: table}
 
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(RequirementScheduling.new!(id: "registry")),
+        CodecRegistry.stable(Enum.map(cluster.nodes, &{:atom, &1}))
+      ])
+
     for host <- cluster.nodes do
       assert {:ok, _} =
                cluster_call(cluster, host, DynamicSupervisor, :start_child, [
                  JidoCluster.Test.Supervisor,
-                 {Jido, name: jido, namespace: namespace, persistence: persistence}
+                 {Jido,
+                  name: jido,
+                  namespace: namespace,
+                  persistence: persistence,
+                  codec_registry: if(persistence, do: registry)}
                ])
     end
 
@@ -54,7 +64,7 @@ defmodule JidoCluster.Distributed.SharedDrainTest do
     end
 
     hosts = for host <- [source, target], do: %{node: host, labels: ["compute"], capacity: 2, available: true}
-    storage = storage(mode, table)
+    storage = storage(mode, table, registry)
     options = [jido: jido, pools: [workers: [hosts: hosts]]] ++ storage
 
     assert {:ok, instance} =
@@ -153,18 +163,12 @@ defmodule JidoCluster.Distributed.SharedDrainTest do
     end
   end
 
-  defp storage(:memory, _table), do: [journal: :memory]
+  defp storage(:memory, _table, _registry), do: [journal: :memory]
 
-  defp storage(mode, table) when mode in [:journal, :recovery, :early_recovery, :volatile_recovery] do
-    topology = RequirementScheduling.new!(id: "registry")
-
+  defp storage(mode, table, registry) when mode in [:journal, :recovery, :early_recovery, :volatile_recovery] do
     [
       journal: {Jido.Persistence.Mnesia, table: table},
-      registry: %{
-        "schema/v1" => {:schema, topology.definition.schema},
-        "worker/v1" => {:agent, Worker},
-        "node" => {:atom, :node}
-      }
+      registry: registry
     ]
   end
 

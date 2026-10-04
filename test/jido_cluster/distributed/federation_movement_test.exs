@@ -2,8 +2,8 @@ defmodule JidoCluster.Distributed.FederationMovementTest do
   use JidoCluster.Test.ClusterCase
   alias Jido.Cluster
   alias Jido.Cluster.Federation.Mirror
-  alias JidoCluster.Test.Federation.{DeclaredTopology, Subscriber}
-  alias JidoCluster.Test.{Instance, JournalAdapter}
+  alias JidoCluster.Test.Federation.DeclaredTopology
+  alias JidoCluster.Test.{CodecRegistry, Instance, JournalAdapter}
 
   @tag cluster_nodes: 3
   test "journaled drain preserves subscriber state and revisions through a return to an earlier host", c do
@@ -236,19 +236,27 @@ defmodule JidoCluster.Distributed.FederationMovementTest do
     persistence = {Jido.Persistence.Mnesia, table: table}
     jido = __MODULE__.Core
     namespace = "binding-movement/#{Jido.generate_id()}"
+    topology = DeclaredTopology.new!(id: "moving-listener")
+    event_registry = CodecRegistry.stable(Enum.map([:id, :type, :source, :data], &{:atom, &1}))
+
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology),
+        event_registry,
+        CodecRegistry.stable(Enum.map(c.cluster.nodes, &{:atom, &1}))
+      ])
 
     cores =
       for host <- c.cluster.nodes,
-          do: {host, start(c, host, {Jido, name: jido, namespace: namespace, persistence: persistence})}
+          do:
+            {host,
+             start(
+               c,
+               host,
+               {Jido, name: jido, namespace: namespace, persistence: persistence, codec_registry: registry}
+             )}
 
     guards = for host <- workers, do: {host, start(c, host, {Cluster.HostRuntime, jido: jido})}
-    topology = DeclaredTopology.new!(id: "moving-listener")
-
-    registry = %{
-      "schema/v1" => {:schema, topology.definition.schema},
-      "subscriber/v1" => {:agent, Subscriber},
-      "node" => {:atom, :node}
-    }
 
     hosts = for host <- workers, do: %{node: host, labels: ["compute"], capacity: 1, available: true}
 

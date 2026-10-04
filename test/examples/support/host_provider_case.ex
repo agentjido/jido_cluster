@@ -10,6 +10,7 @@ defmodule JidoCluster.Examples.Support.HostProviderCase do
   alias JidoCluster.Examples.Support.DockerProviderCase
   alias JidoCluster.Examples.Support.JournalReplyLoss
   alias JidoCluster.Test.{Bedrock, HostProvider}
+  alias JidoCluster.Test.CodecRegistry
 
   def start(c, topology, opts \\ [])
   def start(%{docker_options: _} = c, topology, opts), do: DockerProviderCase.start(c, topology, opts)
@@ -35,6 +36,13 @@ defmodule JidoCluster.Examples.Support.HostProviderCase do
     backend = {Jido.Persistence.Bedrock, repo: Bedrock.Repo}
     faults = if opts[:faults], do: child(c, control, {JournalReplyLoss, backend})
     journal = if faults, do: {JournalReplyLoss, server: faults}, else: backend
+    topology_instance = topology.new!(id: "registry")
+
+    registry =
+      CodecRegistry.merge([
+        CodecRegistry.for_topology(topology_instance),
+        CodecRegistry.stable(Enum.map(c.cluster.nodes, &{:atom, &1}))
+      ])
 
     cores =
       for host <- c.cluster.nodes,
@@ -46,7 +54,8 @@ defmodule JidoCluster.Examples.Support.HostProviderCase do
                {Jido,
                 name: jido,
                 namespace: if(host == worker, do: opts[:worker_namespace] || namespace, else: namespace),
-                persistence: persistence}
+                persistence: persistence,
+                codec_registry: registry}
              )}
 
     provider = child(c, control, {HostProvider, []})
@@ -57,16 +66,10 @@ defmodule JidoCluster.Examples.Support.HostProviderCase do
         {host, %{ownership: mode, options: options, borrowed: borrowed}}
       end
 
-    definition = topology.new!(id: "registry").definition
-
     options = [
       jido: jido,
       journal: journal,
-      registry: %{
-        "schema/v1" => {:schema, definition.schema},
-        "recorder/v1" => {:agent, Module.concat(topology, Recorder)},
-        "node" => {:atom, :node}
-      },
+      registry: registry,
       pools: [
         workers: [hosts: for(host <- workers, do: %{node: host, labels: ["compute"], capacity: 2, available: true})]
       ],

@@ -84,6 +84,28 @@ defmodule JidoCluster.EntityTest do
     assert {:ok, %{pid: ^pid}} = Cluster.lookup(Service, ref)
   end
 
+  test "a neutral data-defined Agent uses the same entity lifecycle" do
+    definition = %{Counter.definition() | module: Jido.Agent, name: "data_counter", vsn: nil}
+
+    assert {:ok, workload} =
+             Entity.new(
+               definition_id: "devices/data-counter-v1",
+               keyspace: "devices",
+               agent: definition,
+               requirements: ["compute"]
+             )
+
+    identity = {"devices", "data-counter"}
+    assert {:ok, accepted} = Entity.ensure(Service, workload, identity)
+    assert {:ok, %{phase: :completed}} = Cluster.await(Service, accepted.operation.id)
+
+    assert {:ok, %{state: %{count: 1}}} =
+             Entity.call(Service, workload, identity, Counter.increment_signal!())
+
+    assert {:ok, topology} = Entity.topology(workload, identity)
+    assert [%{definition: ^definition}] = topology.definition.agents
+  end
+
   test "an old workload definition cannot silently reuse an admitted identity", c do
     key = {"devices", "one"}
     assert {:ok, first} = Entity.ensure(Service, c.workload, key)

@@ -47,7 +47,7 @@ defmodule JidoCluster.SharedAdmissionTest do
     assert [%{topology_id: ^winner, state: :active}] = Cluster.claims(Service)
     {:ok, config} = Cluster.config(Service)
     assert Controller.whereis(config.jido, loser) == nil
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(config.jido))
+    assert Jido.agent_count(config.jido) == 1
   end
 
   @tag capacity: 2

@@ -7,7 +7,12 @@ the same journal, host claims, drain, and recovery path.
 
 ## Define an immutable workload
 
-Give the workload a stable definition ID, an Agent module, and host labels.
+Give the workload a stable definition ID, an Agent source, and host labels.
+A source can be a compiled Agent module or a neutral `%Jido.Agent{}`
+definition. This lets an application load an immutable definition from its
+Agent library without creating one module for each stored Agent. The Actions,
+Flows, and Plugins in that definition must come from the host's trusted code
+library.
 A keyspace is optional. With a keyspace, the first element of each domain-key
 tuple must equal it:
 
@@ -24,6 +29,22 @@ alias Jido.Cluster.Entity
 
 device_key = {"devices", "meter-7"}
 ```
+
+For a data-defined workload, pass the validated definition directly:
+
+```elixir
+{:ok, device_workload} =
+  Entity.new(
+    definition_id: "devices/v2",
+    keyspace: "devices",
+    agent: MyApp.AgentLibrary.fetch!("devices/v2"),
+    requirements: ["compute"]
+  )
+```
+
+Cluster stores the exact definition in the singleton Topology. A later call
+for the same identity with a different definition returns
+`:entity_definition_conflict`.
 
 The version-one mapping includes the definition ID, keyspace, and key. It
 creates a stable Topology ID. Core derives the Agent ID and Ref. A host name

@@ -9,19 +9,22 @@ defmodule Jido.Cluster.Examples.SubscriptionMove.Recorder do
   routes do
     signal_source "/examples/federation_lifecycle/subscription_move"
 
-    route "examples.federation_lifecycle.subscription_move.record" do
+    route "examples.federation_lifecycle.subscription_move.record", as: :record do
       action _input, schema: Zoi.object(%{}), context: context do
         {:ok, %{context.agent_state | events: context.agent_state.events ++ [context.signal.id]}}
       end
-
-      define :record
     end
+  end
+
+  def record_signal! do
+    {:ok, signal} = record_signal(%{})
+    signal
   end
 end
 
 defmodule Jido.Cluster.Examples.SubscriptionMove do
   @moduledoc "Declares a required subscriber that follows accepted placement."
-  use Jido.Topology, name: "08_01_subscription_move", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_08_01_subscription_move", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

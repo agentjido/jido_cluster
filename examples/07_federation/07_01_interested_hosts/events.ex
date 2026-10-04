@@ -20,20 +20,23 @@ defmodule Jido.Cluster.Examples.InterestedEvents.Recorder do
   routes do
     signal_source "/examples/federation/interested_hosts"
 
-    route "examples.federation.interested_hosts.record" do
+    route "examples.federation.interested_hosts.record", as: :record do
       action _input, schema: Zoi.object(%{value: Zoi.integer()}), context: context do
         event = Map.take(context.signal, [:id, :type, :source, :data])
         {:ok, %{context.agent_state | events: context.agent_state.events ++ [event]}}
       end
-
-      define :record, args: [:value]
     end
+  end
+
+  def record_signal!(value) do
+    {:ok, signal} = record_signal(%{value: value})
+    signal
   end
 end
 
 defmodule Jido.Cluster.Examples.InterestedEvents do
   @moduledoc "Declares the scoped event channel and its required local subscribers."
-  use Jido.Topology, name: "07_01_interested_hosts", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_07_01_interested_hosts", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

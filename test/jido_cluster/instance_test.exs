@@ -35,6 +35,25 @@ defmodule JidoCluster.InstanceTest do
     refute Process.alive?(core)
   end
 
+  test "managed core receives the Cluster codec registry" do
+    registry = %{"agents/core" => {:agent, Jido.Agent}}
+    start_supervised!({Managed, journal: :memory, registry: registry})
+    assert {:ok, config} = Jido.Cluster.config(Managed)
+    assert Jido.instance_codec_registry(config.jido) == Jido.Codec.Registry.new!(registry)
+  end
+
+  test "durable Agent persistence requires a stable codec registry" do
+    persistence = {Jido.Persistence.ETS, table: :instance_contract_agents}
+
+    assert {:error, {:invalid_registry, :required}} =
+             Managed.config(journal: :memory, agent_persistence: persistence)
+
+    {:ok, temporary} = Jido.Codec.Registry.derive([{:agent, Jido.Agent}])
+
+    assert {:error, {:invalid_registry, %Jido.Error.ValidationError{}}} =
+             Managed.config(journal: :memory, agent_persistence: persistence, registry: temporary)
+  end
+
   test "attached mode inherits namespace and retains application core" do
     core = start_supervised!({Jido, name: __MODULE__.Core, namespace: "attached-contract"})
     start_supervised!({Attached, journal: :memory})

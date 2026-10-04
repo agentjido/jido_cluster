@@ -9,19 +9,22 @@ defmodule Jido.Cluster.Examples.AcquiredTopology.Recorder do
   routes do
     signal_source "/examples/host_providers/acquired_topology"
 
-    route "examples.host_providers.acquired_topology.record" do
+    route "examples.host_providers.acquired_topology.record", as: :record do
       action _input, schema: Zoi.object(%{}), context: context do
         {:ok, %{context.agent_state | events: context.agent_state.events ++ [context.signal.id]}}
       end
-
-      define :record
     end
+  end
+
+  def record_signal! do
+    {:ok, signal} = record_signal(%{})
+    signal
   end
 end
 
 defmodule Jido.Cluster.Examples.AcquiredTopology do
   @moduledoc "Runs a subscriber on capacity accepted by a host provider."
-  use Jido.Topology, name: "09_01_acquired_topology", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_09_01_acquired_topology", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

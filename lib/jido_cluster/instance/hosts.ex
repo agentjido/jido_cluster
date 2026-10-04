@@ -28,15 +28,38 @@ defmodule Jido.Cluster.Instance.Hosts do
   @doc "Builds the compatibility requirements for direct host confirmation or recovery."
   @spec expected(Instance.Config.t(), Jido.Topology.Instance.t()) :: {:ok, keyword()} | {:error, term()}
   def expected(config, topology) do
-    with {:ok, local} <- HostRuntime.probe(HostRuntime.name(config.jido), []) do
+    with {:ok, local} <- HostRuntime.probe(HostRuntime.name(config.jido), []),
+         {:ok, _document, definition_registry} <- Jido.Topology.Codec.encode(topology.definition),
+         {:ok, codec_registry} <- codec_registry(config.jido, local.persistence_identity, topology.definition.agents) do
       {:ok,
        [
          namespace: config.namespace,
          protocol: 1,
          release: local.release,
          persistence_identity: local.persistence_identity,
-         modules: topology.plan.agents |> Map.values() |> Enum.map(& &1.module) |> Enum.uniq()
+         modules:
+           topology.definition.agents
+           |> Enum.flat_map(fn
+             %{module: module} -> [module]
+             %{definition: %Jido.Agent{}} -> []
+           end)
+           |> Enum.uniq(),
+         definition_registry: definition_registry,
+         codec_registry: codec_registry
        ]}
+    end
+  end
+
+  defp codec_registry(_jido, :none, _agents), do: {:ok, nil}
+
+  defp codec_registry(jido, _persistence, agents) do
+    if Enum.any?(agents, &match?(%{definition: %Jido.Agent{}}, &1)) do
+      case Jido.instance_codec_registry(jido) do
+        %Jido.Codec.Registry{} = registry -> {:ok, registry}
+        nil -> {:error, {:invalid_core_codec_registry, :required}}
+      end
+    else
+      {:ok, nil}
     end
   end
 

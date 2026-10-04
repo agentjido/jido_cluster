@@ -203,14 +203,7 @@ defmodule Jido.Cluster.Instance.HostWork do
     status = HostRuntime.status({HostRuntime.name(c.config.jido), c.host})
     claims = Enum.flat_map(status.allocations, fn {_, allocation} -> allocation.claims end)
 
-    agents =
-      :erpc.call(
-        c.host,
-        DynamicSupervisor,
-        :count_children,
-        [Jido.agent_supervisor_name(c.config.jido)],
-        c.config.timeout
-      )
+    agents = :erpc.call(c.host, Jido, :agent_count, [c.config.jido], c.config.timeout)
 
     mirrors =
       :erpc.call(c.host, DynamicSupervisor, :count_children, [Jido.Cluster.FederationSupervisor], c.config.timeout)
@@ -222,7 +215,7 @@ defmodule Jido.Cluster.Instance.HostWork do
       status.incarnation == c.session.host_incarnation or
         (allocation != nil and allocation.retiring_step == c.session.step.id)
 
-    if same and map_size(status.allocations) == 1 and claims == [] and agents.active == 0 and mirrors.active == 0,
+    if same and map_size(status.allocations) == 1 and claims == [] and agents == 0 and mirrors.active == 0,
       do:
         HostRuntime.retire(
           {HostRuntime.name(c.config.jido), c.host},

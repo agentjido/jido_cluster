@@ -1,7 +1,7 @@
 defmodule JidoCluster.RecoveryTest do
   use ExUnit.Case, async: false
   alias Jido.Cluster
-  alias JidoCluster.Test.{JournalAdapter, OperationBarrier}
+  alias JidoCluster.Test.{CodecRegistry, JournalAdapter, OperationBarrier}
   alias JidoCluster.Test.PlacementWorker, as: Worker
   alias JidoCluster.Test.WorkerTopology, as: RequirementScheduling
   import JidoCluster.Test.Eventually
@@ -21,11 +21,11 @@ defmodule JidoCluster.RecoveryTest do
       namespace: "recovery/#{Jido.generate_id()}",
       journal: {JournalAdapter, server: server},
       agent_persistence: {Jido.Persistence.Mnesia, table: table},
-      registry: %{
-        "schema/v1" => {:schema, topology.definition.schema},
-        "worker/v1" => {:agent, Worker},
-        "node" => {:atom, :node}
-      },
+      registry:
+        CodecRegistry.merge([
+          CodecRegistry.for_topology(topology),
+          Jido.Codec.Registry.new!(%{"node" => {:atom, :node}})
+        ]),
       pools: [workers: [hosts: [%{node: node(), capacity: 2, labels: ["compute"], available: true}]]]
     ]
 
@@ -80,7 +80,11 @@ defmodule JidoCluster.RecoveryTest do
 
     core =
       start_supervised!(
-        {Jido, name: jido, namespace: c.options[:namespace], persistence: c.options[:agent_persistence]}
+        {Jido,
+         name: jido,
+         namespace: c.options[:namespace],
+         persistence: c.options[:agent_persistence],
+         codec_registry: c.options[:registry]}
       )
 
     options = c.options |> Keyword.drop([:namespace, :agent_persistence]) |> Keyword.put(:jido, jido)
@@ -124,7 +128,7 @@ defmodule JidoCluster.RecoveryTest do
     eventually(fn -> match?({:ok, %{agent_readiness: :ready}}, Cluster.status(Service, c.topology.id)) end)
     assert {:ok, operation} = Cluster.deploy(Service, c.topology, request_id: token)
     assert operation.phase == :completed
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 1
     assert [_] = Cluster.claims(Service)
   end
 
@@ -141,7 +145,7 @@ defmodule JidoCluster.RecoveryTest do
     eventually(fn -> match?({:ok, %{agent_readiness: :ready}}, Cluster.status(Service, c.topology.id)) end)
     assert {:ok, %{phase: :completed, id: id}} = Cluster.deploy(Service, c.topology, request_id: token)
     assert id == operation.id
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 1
     assert [%{state: :active}] = Cluster.claims(Service)
   end
 
@@ -163,7 +167,7 @@ defmodule JidoCluster.RecoveryTest do
     assert current != previous
     assert {:ok, %{id: id, phase: :completed}} = Cluster.deploy(Service, c.topology, request_id: token)
     assert id == operation.id
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 1
   end
 
   test "a restarted host guard is reconciled before a replacement becomes ready", c do
@@ -204,7 +208,7 @@ defmodule JidoCluster.RecoveryTest do
       assert :ok = Task.await(recovery)
       assert_receive {:journal_written, caller, gate}, 5_000
       {caller, gate} = hold_later(c.server, caller, gate, unquote(additional_writes))
-      assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+      assert Jido.agent_count(Service.Core) == 0
       {:ok, stored} = Cluster.Journal.open(c.options[:journal], token.scope)
       [deployment] = stored.record["deployments"]
       assert deployment["recovery"] == "pending"
@@ -227,7 +231,7 @@ defmodule JidoCluster.RecoveryTest do
       {:ok, %{pid: agent}} = Cluster.lookup(Service, ref)
       assert %{agent: %{state: %{count: 1}}, state_version: 1} = Jido.AgentServer.snapshot(agent)
       assert [%{ref: ^ref, state: :active}] = Cluster.claims(Service)
-      assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+      assert Jido.agent_count(Service.Core) == 1
       assert {:ok, %{id: same, phase: :completed}} = Cluster.deploy(Service, c.topology, request_id: token)
       assert same == operation.id
     end
@@ -350,6 +354,6 @@ defmodule JidoCluster.RecoveryTest do
       assert {:ok, %{id: ^id, phase: :completed}} = Cluster.enable_host(Service, node(), request_id: token)
     end
 
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(Service.Core))
+    assert Jido.agent_count(Service.Core) == 1
   end
 end

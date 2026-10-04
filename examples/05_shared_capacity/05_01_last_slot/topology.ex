@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.LastSlot do
   @moduledoc "Share the final slot between independent deployment callers."
-  use Jido.Topology, name: "05_01_last_slot", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_05_01_last_slot", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do

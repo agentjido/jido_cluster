@@ -20,6 +20,24 @@ defmodule JidoCluster.HostRuntimeTest do
     assert {:error, {:incompatible, :namespace}} = HostRuntime.probe(host, namespace: "other", protocol: 1)
     assert {:error, {:incompatible, :protocol}} = HostRuntime.probe(host, namespace: "host-contract", protocol: 2)
     assert {:error, {:missing_module, MissingAgent}} = HostRuntime.probe(host, modules: [MissingAgent])
+    assert {:ok, _info} = HostRuntime.probe(host, modules: [JidoCluster.Test.PlacementWorker])
+
+    definition = %{JidoCluster.Test.TopologyCounter.definition() | module: Jido.Agent, vsn: nil}
+    {:ok, definition_registry} = Jido.Agent.Codec.Deriver.agent(definition)
+    assert {:ok, _info} = HostRuntime.probe(host, definition_registry: definition_registry)
+
+    missing_action_registry = %Jido.Codec.Registry{
+      entries: %{"actions/missing" => {:action, MissingAction}},
+      provenance: :temporary
+    }
+
+    assert {:error, {:missing_definition_capability, %Jido.Error.ValidationError{}}} =
+             HostRuntime.probe(host, definition_registry: missing_action_registry)
+
+    stable_registry = Jido.Codec.Registry.new!(%{"agents/core" => {:agent, Jido.Agent}})
+
+    assert {:error, {:incompatible, :codec_registry}} =
+             HostRuntime.probe(host, codec_registry: stable_registry)
   end
 
   test "restart changes incarnation and stale registration is rejected", %{host: host, jido: jido} do

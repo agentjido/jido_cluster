@@ -53,6 +53,7 @@ defmodule Jido.Cluster.Deployment.Owner do
             {:ok, tasks} = Task.Supervisor.start_link()
             {:ok, controllers} = DynamicSupervisor.start_link(strategy: :one_for_one)
             monitor = Process.monitor(runner)
+            core_monitor = Process.monitor(Process.whereis(state.jido))
             handler = {__MODULE__, self()}
 
             :ok =
@@ -67,6 +68,7 @@ defmodule Jido.Cluster.Deployment.Owner do
              %{
                runner: runner,
                monitor: monitor,
+               core_monitor: core_monitor,
                key: key,
                jido: state.jido,
                id: state.instance.id,
@@ -175,10 +177,21 @@ defmodule Jido.Cluster.Deployment.Owner do
   end
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, %{monitor: ref} = state) do
+    state = if Process.whereis(state.jido), do: state, else: stop_controller_agents(state)
+
     case cleanup(state) do
       :ok -> {:stop, :normal, %{state | cleaned: true, task: nil}}
       _error -> {:noreply, %{state | runner: nil, task: nil, stopping: true}}
     end
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, %{core_monitor: ref} = state) do
+    state = stop_controller_agents(state)
+
+    if state.controller && Process.alive?(state.controller),
+      do: DynamicSupervisor.terminate_child(state.controllers, state.controller)
+
+    {:noreply, %{state | core_monitor: nil}}
   end
 
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{controller_monitor: ref} = state) do
@@ -294,6 +307,34 @@ defmodule Jido.Cluster.Deployment.Owner do
     for {_, pid, _, _} <- Supervisor.which_children(controller), is_pid(pid), do: pid
   catch
     :exit, _reason -> []
+  end
+
+  defp stop_controller_agents(%{baseline: instance} = state) when not is_nil(instance) do
+    ids = Enum.map(instance.plan.agents, fn {_key, spec} -> spec.id end)
+
+    for host <- state.cleanup_hosts,
+        id <- ids,
+        pid = agent_pid(host, state.jido, id),
+        is_pid(pid),
+        do: stop_agent(pid)
+
+    state
+  end
+
+  defp stop_controller_agents(state), do: state
+
+  defp stop_agent(pid) do
+    if node(pid) == node(),
+      do: Jido.AgentServer.stop(pid),
+      else: :erpc.call(node(pid), Jido.AgentServer, :stop, [pid], 5_000)
+  catch
+    _kind, _reason -> :ok
+  end
+
+  defp agent_pid(host, jido, id) do
+    :erpc.call(host, Jido, :whereis_agent, [jido, id], 5_000)
+  catch
+    _kind, _reason -> nil
   end
 
   defp await_children(children) do

@@ -58,7 +58,7 @@ defmodule JidoCluster.RequestRetentionTest do
     assert %{retention: %{epoch: 0, requests: 64, unresolved_operations: 1}} = Cluster.status(Service)
     assert [%{state: :uncertain}] = Cluster.claims(Service)
     {:ok, config} = Cluster.config(Service)
-    assert %{active: 1} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(config.jido))
+    assert Jido.agent_count(config.jido) == 1
   end
 
   test "token fields cannot be extended or changed to another numeric type" do
@@ -86,7 +86,7 @@ defmodule JidoCluster.RequestRetentionTest do
     assert {:ok, %{desired: :stopped, phase: :completed}} = Cluster.status(Service, "retained-1")
     assert Cluster.claims(Service) == []
     {:ok, config} = Cluster.config(Service)
-    assert %{active: 0} = DynamicSupervisor.count_children(Jido.agent_supervisor_name(config.jido))
+    assert Jido.agent_count(config.jido) == 0
   end
 
   defp fill_completed(count) do

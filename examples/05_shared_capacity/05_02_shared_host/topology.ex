@@ -1,6 +1,6 @@
 defmodule Jido.Cluster.Examples.SharedHost do
   @moduledoc "Stop one deployment without stopping another on the same host."
-  use Jido.Topology, name: "05_02_shared_host", extensions: [Jido.Cluster.Topology.Extension]
+  use Jido.Topology, name: "example_05_02_shared_host", extensions: [Jido.Cluster.Topology.Extension]
 
   topology do
     agents do
