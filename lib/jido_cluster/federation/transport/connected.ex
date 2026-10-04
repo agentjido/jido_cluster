@@ -30,14 +30,20 @@ defmodule Jido.Cluster.Federation.Transport.Connected do
   @doc "Admits and sends one envelope, or rejects before placing its payload in a mailbox."
   @spec transmit(map(), Envelope.t()) :: {:ok, :appended | :duplicate} | {:error, term()}
   @impl Jido.Cluster.Federation.Transport
-  def transmit(endpoint, envelope) do
-    with {:ok, _} <- Envelope.validate(envelope, endpoint.scope, endpoint.types, endpoint.limits),
-         {:ok, permit} <- Gate.reserve(endpoint.gate, Envelope.bytes(envelope)) do
-      GenServer.call(endpoint.pid, {:transmit, permit, envelope}, :infinity)
+  def transmit(
+        %{scope: scope, types: types, limits: %Limits{} = limits, gate: %Gate{} = gate, pid: pid} = endpoint,
+        envelope
+      )
+      when map_size(endpoint) == 5 and is_pid(pid) do
+    with {:ok, _} <- Envelope.validate(envelope, scope, types, limits),
+         {:ok, permit} <- Gate.reserve(gate, Envelope.bytes(envelope)) do
+      GenServer.call(pid, {:transmit, permit, envelope}, :infinity)
     end
   catch
     :exit, _ -> {:error, :sender_unavailable}
   end
+
+  def transmit(_, _), do: {:error, :invalid_endpoint}
 
   @doc "Reports credit use and current transport health without payload values."
   @spec status(pid()) :: map()

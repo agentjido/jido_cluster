@@ -1,12 +1,14 @@
 defmodule JidoCluster.Topology.ExtensionTest do
   use ExUnit.Case, async: true
+  alias Jido.Agent
   alias Jido.Cluster.Topology.Extension
   alias Jido.Cluster.Topology.Extension.Worker
   alias Jido.Topology.Codec
   alias JidoCluster.Test.LabelTopology, as: LabelExtension
+  alias JidoCluster.Test.TopologyCounter
 
   defmodule DataTopology do
-    @definition %{JidoCluster.Test.TopologyCounter.definition() | module: Jido.Agent, vsn: nil}
+    @definition %{TopologyCounter.definition() | module: Agent, vsn: nil}
     use Jido.Topology, name: "data_cluster_topology", extensions: [Jido.Cluster.Topology.Extension]
 
     topology do
@@ -28,7 +30,7 @@ defmodule JidoCluster.Topology.ExtensionTest do
   end
 
   test "lowering accepts one neutral data-defined Agent" do
-    definition = %{JidoCluster.Test.TopologyCounter.definition() | module: Jido.Agent, vsn: nil}
+    definition = %{TopologyCounter.definition() | module: Agent, vsn: nil}
 
     worker = %Worker{key: :worker, definition: definition, labels: ["compute"]}
 
@@ -41,7 +43,7 @@ defmodule JidoCluster.Topology.ExtensionTest do
   end
 
   test "the Cluster DSL accepts a neutral data-defined Agent" do
-    definition = %{JidoCluster.Test.TopologyCounter.definition() | module: Jido.Agent, vsn: nil}
+    definition = %{TopologyCounter.definition() | module: Agent, vsn: nil}
 
     assert [%{key: "worker", definition: ^definition}] = DataTopology.topology().agents
     assert DataTopology.topology().metadata["jido.cluster.requirements"] == %{"worker" => ["compute"]}

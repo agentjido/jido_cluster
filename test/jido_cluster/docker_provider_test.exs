@@ -31,6 +31,14 @@ defmodule JidoCluster.DockerProviderTest do
     assert DockerAPI.requests(c.server) == []
   end
 
+  test "discovery rejects an invalid text scope before contacting the engine", c do
+    for scope <- [{"", "test"}, {"docker", ""}, {<<255>>, "test"}, {"docker", <<255>>}] do
+      assert {:error, :invalid_discovery_scope} = Docker.discover(scope, 1, c.options)
+    end
+
+    assert DockerAPI.requests(c.server) == []
+  end
+
   test "Unix socket requests check engine identity and authoritative absence", c do
     path = Path.join(System.tmp_dir!(), "jido-docker-#{Jido.generate_id()}.sock")
     server = start_supervised!({DockerAPI, %{path: path, replies: [engine(), absent()]}}, id: :unix_api)

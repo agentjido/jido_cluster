@@ -32,7 +32,7 @@ defmodule Jido.Cluster.Admission do
     Enum.all?(hosts, fn
       host when is_map(host) ->
         id = Map.get(host, :allocation, "default")
-        is_binary(id) and byte_size(id) in 1..128
+        is_binary(id) and byte_size(id) in 1..128 and String.valid?(id)
 
       _ ->
         false

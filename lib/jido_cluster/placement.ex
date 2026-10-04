@@ -50,7 +50,7 @@ defmodule Jido.Cluster.Placement do
   defp valid_host?(_), do: false
 
   defp valid_labels?(labels) when is_list(labels),
-    do: Enum.all?(labels, &(is_binary(&1) and byte_size(&1) > 0))
+    do: Enum.all?(labels, &(is_binary(&1) and byte_size(&1) > 0 and String.valid?(&1)))
 
   defp valid_labels?(_), do: false
 end

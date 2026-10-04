@@ -90,6 +90,7 @@ defmodule JidoCluster.Federation.BridgeTest do
   end
 
   test "invalid types and oversize values fail before local append", c do
+    assert {:error, :invalid_endpoint} = Bridge.publish(%{}, c.signal)
     assert {:error, :type_not_allowed} = Bridge.publish(c.endpoint, %{c.signal | type: "other.changed"})
     assert {:error, :envelope_too_large} = Bridge.publish(c.endpoint, %{c.signal | data: String.duplicate("x", 16_384)})
     assert {:ok, []} = Bus.replay(c.bus, "counter.changed")

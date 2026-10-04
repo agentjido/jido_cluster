@@ -40,15 +40,31 @@ defmodule Jido.Cluster.Federation.Bridge do
   @spec publish(map(), Jido.Signal.t(), timeout()) :: {:ok, map()} | {:error, term()}
   def publish(endpoint, signal, timeout \\ 5000)
 
-  def publish(endpoint, signal, timeout) when timeout == :infinity or (is_integer(timeout) and timeout >= 0) do
-    with {:ok, envelope} <- Envelope.new(endpoint.scope, endpoint.generation, signal, endpoint.limits),
-         {:ok, _} <- Envelope.validate(envelope, endpoint.scope, endpoint.types, endpoint.limits),
-         {:ok, permit} <- Gate.reserve(endpoint.gate, Envelope.bytes(envelope)) do
-      GenServer.call(endpoint.pid, {:publish, permit, envelope}, timeout)
+  def publish(
+        %{
+          scope: scope,
+          generation: generation,
+          limits: %Limits{} = limits,
+          types: types,
+          gate: %Gate{} = gate,
+          pid: pid
+        } = endpoint,
+        signal,
+        timeout
+      )
+      when map_size(endpoint) == 6 and is_pid(pid) and
+             (timeout == :infinity or (is_integer(timeout) and timeout >= 0)) do
+    with {:ok, envelope} <- Envelope.new(scope, generation, signal, limits),
+         {:ok, _} <- Envelope.validate(envelope, scope, types, limits),
+         {:ok, permit} <- Gate.reserve(gate, Envelope.bytes(envelope)) do
+      GenServer.call(pid, {:publish, permit, envelope}, timeout)
     end
   catch
     :exit, _ -> {:error, :publication_uncertain}
   end
+
+  def publish(_, _, timeout) when timeout == :infinity or (is_integer(timeout) and timeout >= 0),
+    do: {:error, :invalid_endpoint}
 
   def publish(_, _, _), do: {:error, :invalid_timeout}
 

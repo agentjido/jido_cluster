@@ -166,6 +166,9 @@ defmodule JidoCluster.JournalSnapshotTest do
     assert {:ok, ^fingerprint} = Snapshot.fingerprint(:deploy, %{topology | plan: nil}, c.registry)
     assert {:ok, other} = Snapshot.fingerprint(:deploy, %{topology | id: "different"}, c.registry)
     refute other == fingerprint
+    assert {:ok, _} = Snapshot.fingerprint(:stop, topology.id, c.registry)
+    assert {:error, :invalid_request} = Snapshot.fingerprint(:stop, "", c.registry)
+    assert {:error, :invalid_request} = Snapshot.fingerprint(:stop, <<255>>, c.registry)
     assert {:error, _} = Snapshot.fingerprint(:deploy, topology, %{})
   end
 

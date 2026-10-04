@@ -1,7 +1,10 @@
 defmodule JidoCluster.HostRuntimeTest do
   use ExUnit.Case, async: false
+  alias Jido.Agent.Codec.Deriver
   alias Jido.Agent.Ref
   alias Jido.Cluster.HostRuntime
+  alias Jido.Codec.Registry
+  alias JidoCluster.Test.{PlacementWorker, TopologyCounter}
   import JidoCluster.Test.Eventually
 
   setup do
@@ -20,13 +23,13 @@ defmodule JidoCluster.HostRuntimeTest do
     assert {:error, {:incompatible, :namespace}} = HostRuntime.probe(host, namespace: "other", protocol: 1)
     assert {:error, {:incompatible, :protocol}} = HostRuntime.probe(host, namespace: "host-contract", protocol: 2)
     assert {:error, {:missing_module, MissingAgent}} = HostRuntime.probe(host, modules: [MissingAgent])
-    assert {:ok, _info} = HostRuntime.probe(host, modules: [JidoCluster.Test.PlacementWorker])
+    assert {:ok, _info} = HostRuntime.probe(host, modules: [PlacementWorker])
 
-    definition = %{JidoCluster.Test.TopologyCounter.definition() | module: Jido.Agent, vsn: nil}
-    {:ok, definition_registry} = Jido.Agent.Codec.Deriver.agent(definition)
+    definition = %{TopologyCounter.definition() | module: Jido.Agent, vsn: nil}
+    {:ok, definition_registry} = Deriver.agent(definition)
     assert {:ok, _info} = HostRuntime.probe(host, definition_registry: definition_registry)
 
-    missing_action_registry = %Jido.Codec.Registry{
+    missing_action_registry = %Registry{
       entries: %{"actions/missing" => {:action, MissingAction}},
       provenance: :temporary
     }
@@ -34,10 +37,20 @@ defmodule JidoCluster.HostRuntimeTest do
     assert {:error, {:missing_definition_capability, %Jido.Error.ValidationError{}}} =
              HostRuntime.probe(host, definition_registry: missing_action_registry)
 
-    stable_registry = Jido.Codec.Registry.new!(%{"agents/core" => {:agent, Jido.Agent}})
+    stable_registry = Registry.new!(%{"agents/core" => {:agent, Jido.Agent}})
 
     assert {:error, {:incompatible, :codec_registry}} =
              HostRuntime.probe(host, codec_registry: stable_registry)
+  end
+
+  test "allocation identifiers must be portable UTF-8" do
+    jido = __MODULE__.AllocationCore
+    start_supervised!({Jido, name: jido, namespace: "allocation-contract"})
+    previous = Process.flag(:trap_exit, true)
+    result = HostRuntime.start_link(jido: jido, allocations: %{<<255>> => 1})
+    Process.flag(:trap_exit, previous)
+
+    assert {:error, :invalid_allocations} = result
   end
 
   test "restart changes incarnation and stale registration is rejected", %{host: host, jido: jido} do

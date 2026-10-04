@@ -17,6 +17,9 @@ defmodule JidoCluster.AdmissionTest do
              Admission.new({"ledger", "scope"}, [Map.put(host(:a, 1), :allocation, 12)])
 
     assert {:error, :conflicting_host_budget} = Admission.new({"ledger", "scope"}, [host(:a, 1), host(:a, 2)])
+
+    assert {:error, :conflicting_host_budget} =
+             Admission.new({"ledger", "scope"}, [Map.put(host(:a, 1), :allocation, <<255>>)])
   end
 
   test "complete reservation rejects demand without changing the ledger" do

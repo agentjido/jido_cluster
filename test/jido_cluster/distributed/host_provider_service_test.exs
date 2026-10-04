@@ -4,8 +4,8 @@ defmodule JidoCluster.Distributed.HostProviderServiceTest do
   alias Jido.Cluster.HostProvider.{Resource, Step}
   alias Jido.Cluster.HostRuntime
   alias JidoCluster.Test.Bedrock
-  alias JidoCluster.Test.Federation.DeclaredTopology
   alias JidoCluster.Test.{CodecRegistry, HostProvider, Instance, JournalAdapter}
+  alias JidoCluster.Test.Federation.DeclaredTopology
 
   test "acquisition precedes admission and release waits for Agent and binding cleanup", c do
     f = start(c)

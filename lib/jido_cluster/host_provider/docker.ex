@@ -85,7 +85,8 @@ defmodule Jido.Cluster.HostProvider.Docker do
 
   @impl true
   def discover({namespace, scope}, limit, options) when is_binary(namespace) and is_binary(scope) and limit in 1..32 do
-    with {:ok, config} <- Options.new(options),
+    with :ok <- validate_discovery_scope(namespace, scope),
+         {:ok, config} <- Options.new(options),
          true <- config.borrowed_id == nil,
          :ok <- engine(config) do
       filters = Jason.encode!(%{"label" => [@namespace_label <> "=" <> namespace, @scope_label <> "=" <> scope]})
@@ -98,6 +99,12 @@ defmodule Jido.Cluster.HostProvider.Docker do
   end
 
   def discover(_, _, _), do: {:error, :invalid_discovery_limit}
+
+  defp validate_discovery_scope(namespace, scope) do
+    if namespace != "" and scope != "" and String.valid?(namespace) and String.valid?(scope),
+      do: :ok,
+      else: {:error, :invalid_discovery_scope}
+  end
 
   defp discover_records({:ok, 200, records}, scope, limit, config) when is_list(records) and length(records) <= limit do
     Enum.reduce_while(records, {:ok, []}, fn record, {:ok, resources} ->

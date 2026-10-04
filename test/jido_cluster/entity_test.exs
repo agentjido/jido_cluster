@@ -45,6 +45,13 @@ defmodule JidoCluster.EntityTest do
              Entity.new(definition_id: "devices/v1", agent: Counter, identity_mode: :require_imported)
   end
 
+  test "workloads reject non-text placement requirements" do
+    for requirement <- ["", <<255>>] do
+      assert {:error, :invalid_entity_workload} =
+               Entity.new(definition_id: "devices/v1", agent: Counter, requirements: [requirement])
+    end
+  end
+
   test "simultaneous first requests share one admitted activation and one core Ref", c do
     key = {"devices", "first"}
     assert {:error, :not_found} = Entity.lookup(Service, c.workload, key)

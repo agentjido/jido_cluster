@@ -155,7 +155,9 @@ defmodule Jido.Cluster.Entity do
     do: %{key: @agent_key, module: module, initial_state: initial_state}
 
   defp valid_requirements?(requirements),
-    do: is_list(requirements) and Enum.all?(requirements, &(is_binary(&1) and &1 != ""))
+    do:
+      is_list(requirements) and
+        Enum.all?(requirements, &(is_binary(&1) and byte_size(&1) > 0 and String.valid?(&1)))
 
   defp await_ready(_instance, %{phase: :completed}, _timeout), do: :ok
 

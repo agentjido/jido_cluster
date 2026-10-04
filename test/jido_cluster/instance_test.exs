@@ -21,6 +21,11 @@ defmodule JidoCluster.InstanceTest do
     assert config.journal == :memory
     assert config.agent_persistence == nil
     assert {:error, :invalid_instance_options} = Managed.config(surprise: true)
+    assert {:error, :invalid_namespace} = Managed.config(namespace: <<255>>)
+    assert {:error, :invalid_instance_options} = Managed.config(scope: <<255>>)
+
+    invalid_host = %{node: node(), labels: [<<255>>], capacity: 1, available: true}
+    assert {:error, :invalid_pools} = Managed.config(pools: [workers: [hosts: [invalid_host]]])
   end
 
   test "managed core has a stable name and stops with its owner" do

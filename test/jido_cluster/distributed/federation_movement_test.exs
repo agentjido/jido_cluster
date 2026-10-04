@@ -2,8 +2,8 @@ defmodule JidoCluster.Distributed.FederationMovementTest do
   use JidoCluster.Test.ClusterCase
   alias Jido.Cluster
   alias Jido.Cluster.Federation.Mirror
-  alias JidoCluster.Test.Federation.DeclaredTopology
   alias JidoCluster.Test.{CodecRegistry, Instance, JournalAdapter}
+  alias JidoCluster.Test.Federation.DeclaredTopology
 
   @tag cluster_nodes: 3
   test "journaled drain preserves subscriber state and revisions through a return to an earlier host", c do

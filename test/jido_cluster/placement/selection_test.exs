@@ -25,7 +25,9 @@ defmodule JidoCluster.Placement.SelectionTest do
     host = %{node: :a@local, labels: [], available: true}
     assert {:error, :invalid_inventory} = Placement.select("worker", [host, host], [])
     assert {:error, :invalid_inventory} = Placement.select("worker", [%{host | available: :unknown}], [])
+    assert {:error, :invalid_inventory} = Placement.select("worker", [%{host | labels: [<<255>>]}], [])
     assert {:error, :invalid_requirements} = Placement.select("worker", [host], [""])
+    assert {:error, :invalid_requirements} = Placement.select("worker", [host], [<<255>>])
   end
 
   test "subscribed Agents must stay with their local Bus" do

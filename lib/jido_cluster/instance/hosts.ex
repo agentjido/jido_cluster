@@ -2,6 +2,7 @@ defmodule Jido.Cluster.Instance.Hosts do
   @moduledoc false
   alias Jido.Cluster.{Drain, HostRuntime, Instance}
   alias Jido.Cluster.Instance.Service
+  alias Jido.Topology.Codec
 
   @doc "Confirms the reserved demand on every selected host before core starts."
   @spec confirm(Instance.Config.t(), Jido.Topology.Instance.t(), pid(), map(), String.t()) ::
@@ -29,7 +30,7 @@ defmodule Jido.Cluster.Instance.Hosts do
   @spec expected(Instance.Config.t(), Jido.Topology.Instance.t()) :: {:ok, keyword()} | {:error, term()}
   def expected(config, topology) do
     with {:ok, local} <- HostRuntime.probe(HostRuntime.name(config.jido), []),
-         {:ok, _document, definition_registry} <- Jido.Topology.Codec.encode(topology.definition),
+         {:ok, _document, definition_registry} <- Codec.encode(topology.definition),
          {:ok, codec_registry} <- codec_registry(config.jido, local.persistence_identity, topology.definition.agents) do
       {:ok,
        [

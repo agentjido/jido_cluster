@@ -1,21 +1,24 @@
 defmodule JidoCluster.Test.CodecRegistry do
   @moduledoc false
 
+  alias Jido.Agent
+  alias Jido.Agent.Codec.Deriver, as: AgentDeriver
   alias Jido.Codec.{Data, Registry}
+  alias Jido.Topology.{Codec, Validation}
 
   def for_agent(%Jido.Agent{} = agent) do
-    {:ok, definition_entries} = Jido.Agent.Codec.Deriver.entries(agent)
+    {:ok, definition_entries} = AgentDeriver.entries(agent)
     stable(definition_entries ++ Data.registry_entries(agent.state))
   end
 
   def for_topology(%Jido.Topology.Instance{} = instance) do
-    {:ok, temporary} = Jido.Topology.Codec.Deriver.topology(instance.definition)
+    {:ok, temporary} = Codec.Deriver.topology(instance.definition)
 
     member_entries =
       Enum.flat_map(instance.plan.agents, fn {_key, spec} ->
         definition = runtime_definition(instance, spec)
-        {:ok, entries} = Jido.Agent.Codec.Deriver.entries(definition)
-        agent = Jido.Agent.instantiate!(definition, id: spec.id, state: spec.initial_state)
+        {:ok, entries} = AgentDeriver.entries(definition)
+        agent = Agent.instantiate!(definition, id: spec.id, state: spec.initial_state)
         entries ++ Data.registry_entries(agent.state)
       end)
 
@@ -43,8 +46,8 @@ defmodule JidoCluster.Test.CodecRegistry do
   end
 
   defp runtime_definition(instance, spec) do
-    source = Jido.Topology.Validation.agent_source(spec)
-    {:ok, definition} = Jido.Topology.Validation.agent_definition(source)
+    source = Validation.agent_source(spec)
+    {:ok, definition} = Validation.agent_definition(source)
 
     metadata =
       Map.put(definition.metadata, "jido.topology", %{id: instance.id, key: spec.key})
@@ -72,6 +75,6 @@ defmodule JidoCluster.Test.CodecRegistry do
         }
       end
 
-    Jido.Agent.new!(definition)
+    Agent.new!(definition)
   end
 end

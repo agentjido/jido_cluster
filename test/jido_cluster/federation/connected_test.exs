@@ -31,6 +31,7 @@ defmodule JidoCluster.Federation.ConnectedTest do
   end
 
   test "credit carries the original Signal and suppresses a repeated export", c do
+    assert {:error, :invalid_endpoint} = Connected.transmit(%{}, c.envelope)
     assert {:ok, _} = Bus.subscribe(c.bus, "counter.changed")
     assert {:ok, :appended} = Connected.transmit(c.endpoint, c.envelope)
     assert_receive {:signal, signal}

@@ -85,12 +85,7 @@ defmodule JidoCluster.Distributed.SharedDrainTest do
 
     check_steps(drain, source, target)
 
-    instance =
-      if barrier do
-        recover_drain(cluster, control, instance, barrier, api, drain, mode)
-      else
-        instance
-      end
+    instance = recover_if_needed(cluster, control, instance, barrier, api, drain, mode)
 
     result = api.(:await, [drain.id, 10_000])
 
@@ -112,7 +107,7 @@ defmodule JidoCluster.Distributed.SharedDrainTest do
                instance
              ])
 
-    if mode == :volatile_recovery, do: check_volatile_recovery(cluster, control, options, api, drain)
+    check_volatile_if_needed(mode, cluster, control, options, api, drain)
 
     assert %{active: 0} =
              cluster_call(cluster, target, DynamicSupervisor, :count_children, [Jido.agent_supervisor_name(jido)])
@@ -129,6 +124,16 @@ defmodule JidoCluster.Distributed.SharedDrainTest do
                cluster_call(cluster, target, Jido.AgentServer, :snapshot, [current])
     end
   end
+
+  defp recover_if_needed(_cluster, _control, instance, nil, _api, _drain, _mode), do: instance
+
+  defp recover_if_needed(cluster, control, instance, barrier, api, drain, mode),
+    do: recover_drain(cluster, control, instance, barrier, api, drain, mode)
+
+  defp check_volatile_if_needed(:volatile_recovery, cluster, control, options, api, drain),
+    do: check_volatile_recovery(cluster, control, options, api, drain)
+
+  defp check_volatile_if_needed(_mode, _cluster, _control, _options, _api, _drain), do: :ok
 
   defp deploy_workers(api, source) do
     for count <- 1..2 do

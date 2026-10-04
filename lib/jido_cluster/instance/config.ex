@@ -152,5 +152,5 @@ defmodule Jido.Cluster.Instance.Config do
   defp stable_registry(:memory, nil, _registry), do: :ok
   defp stable_registry(_journal, _persistence, registry), do: Jido.Codec.Registry.require_stable(registry)
 
-  defp nonempty?(value), do: is_binary(value) and byte_size(value) > 0
+  defp nonempty?(value), do: is_binary(value) and byte_size(value) > 0 and String.valid?(value)
 end

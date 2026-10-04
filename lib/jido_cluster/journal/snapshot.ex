@@ -55,7 +55,9 @@ defmodule Jido.Cluster.Journal.Snapshot do
     with {:ok, definition} <- Definition.encode(instance, registry), do: digest(["deploy", definition])
   end
 
-  def fingerprint(:stop, id, _) when is_binary(id), do: digest(["stop", id])
+  def fingerprint(:stop, id, _) when is_binary(id) and byte_size(id) > 0 do
+    if String.valid?(id), do: digest(["stop", id]), else: {:error, :invalid_request}
+  end
 
   def fingerprint(action, host, _)
       when action in [:drain, :enable_host, :acquire_host, :release_host] and is_atom(host),

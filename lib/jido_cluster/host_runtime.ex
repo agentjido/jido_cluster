@@ -434,7 +434,7 @@ defmodule Jido.Cluster.HostRuntime do
   defp valid_allocation?({"default", nil}, true), do: true
 
   defp valid_allocation?({id, capacity}, _),
-    do: is_binary(id) and byte_size(id) in 1..128 and is_integer(capacity) and capacity > 0
+    do: is_binary(id) and byte_size(id) in 1..128 and String.valid?(id) and is_integer(capacity) and capacity > 0
 
   defp validate_provider_step(nil), do: :ok
 
