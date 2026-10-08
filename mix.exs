@@ -122,7 +122,13 @@ defmodule JidoCluster.MixProject do
   end
 
   defp jido_dep do
-    local_dep_or_hex(:jido, "../jido", "~> 2.2")
+    case local_dep_or_hex(:jido, "../jido", "~> 2.4") do
+      {:jido, _requirement, _options} ->
+        {:jido, "~> 2.4"}
+
+      local_dependency ->
+        local_dependency
+    end
   end
 
   defp bedrock_dep do
