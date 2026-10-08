@@ -122,7 +122,14 @@ defmodule JidoCluster.MixProject do
   end
 
   defp jido_dep do
-    local_dep_or_hex(:jido, "../jido", "~> 2.2")
+    case local_dep_or_hex(:jido, "../jido", "~> 2.2") do
+      {:jido, _requirement, _options} ->
+        {:jido,
+         git: "https://github.com/agentjido/jido.git", ref: "0c8853bf451a40330b7192c9d2200a06f9c61261", override: true}
+
+      local_dependency ->
+        local_dependency
+    end
   end
 
   defp bedrock_dep do
