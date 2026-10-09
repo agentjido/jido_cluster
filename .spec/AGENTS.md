@@ -21,5 +21,5 @@ Use this folder to maintain authored Spec Led Development subjects and generated
 - Use file-backed verifications only when the target can carry stable `covers:` markers for every covered id.
 - Keep verification targets repository-root-relative.
 - Use Git history and pull requests as the change log; keep `.spec` current-state only.
-- Finish with `mix spec.verify --debug`, `mix spec.check`, and `mix spec.diffcheck`.
-- Run `mix spec.report` when you need coverage or weak-spot summaries.
+- Finish with `mix spec.check`. It updates state, validates proof, and checks branch coverage.
+- Run `mix spec.status` when you need coverage or weak-spot summaries.

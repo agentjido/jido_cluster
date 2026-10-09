@@ -18,6 +18,8 @@ kind: package
 status: active
 summary: Alpha connected-BEAM package surface for clustered Jido agents.
 surface:
+  - mix.exs
+  - mix.lock
   - README.md
   - lib/jido/cluster.ex
   - lib/jido/cluster/instance_manager.ex
@@ -51,6 +53,11 @@ surface:
   statement: The package README shall state that multi-cluster federation, identity fabric behavior, semantic memory, N followers, quorum acknowledgement, and domain actor frameworks are outside the public jido_cluster scope.
   priority: must
   stability: evolving
+
+- id: jido_cluster.package.dependency_sources
+  statement: Default dependency resolution shall use compatible released Jido and Bedrock versions, with sibling paths available only by explicit environment opt-in.
+  priority: must
+  stability: stable
 ```
 
 ## Verification
@@ -64,6 +71,11 @@ surface:
     - jido_cluster.package.connected_beam_runtime
     - jido_cluster.package.deployment_model
     - jido_cluster.package.narrow_non_goals
+
+- kind: source_file
+  target: mix.exs
+  covers:
+    - jido_cluster.package.dependency_sources
 
 - kind: source_file
   target: lib/jido/cluster.ex
