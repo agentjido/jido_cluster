@@ -58,12 +58,12 @@ surface:
     - spec.workspace.decisions_readme_present
 
 - kind: command
-  target: mix spec.plan
+  target: mix spec.index
   covers:
     - spec.workspace.state_generated
 
 - kind: command
-  target: mix spec.verify
+  target: mix spec.validate
   covers:
     - spec.workspace.state_generated
 ```

@@ -121,6 +121,7 @@ defmodule JidoCluster.MixProject do
     ]
   end
 
+  # covers: jido_cluster.package.dependency_sources
   defp jido_dep do
     case local_dep_or_hex(:jido, "../jido", "~> 2.4") do
       {:jido, _requirement, _options} ->

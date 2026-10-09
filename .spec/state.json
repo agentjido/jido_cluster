@@ -379,6 +379,14 @@
       },
       {
         "file": ".spec/specs/package.spec.md",
+        "id": "jido_cluster.package.dependency_sources",
+        "priority": "must",
+        "stability": "stable",
+        "statement": "Default dependency resolution shall use compatible released Jido and Bedrock versions, with sibling paths available only by explicit environment opt-in.",
+        "subject_id": "jido_cluster.package"
+      },
+      {
+        "file": ".spec/specs/package.spec.md",
         "id": "jido_cluster.package.deployment_model",
         "priority": "must",
         "stability": "evolving",
@@ -1283,6 +1291,8 @@
           "status": "active",
           "summary": "Alpha connected-BEAM package surface for clustered Jido agents.",
           "surface": [
+            "mix.exs",
+            "mix.lock",
             "README.md",
             "lib/jido/cluster.ex",
             "lib/jido/cluster/instance_manager.ex",
@@ -1569,6 +1579,15 @@
       },
       {
         "covers": [
+          "jido_cluster.package.dependency_sources"
+        ],
+        "file": ".spec/specs/package.spec.md",
+        "kind": "source_file",
+        "subject_id": "jido_cluster.package",
+        "target": "mix.exs"
+      },
+      {
+        "covers": [
           "jido_cluster.package.public_namespace"
         ],
         "file": ".spec/specs/package.spec.md",
@@ -1728,7 +1747,7 @@
         "file": ".spec/specs/spec_system.spec.md",
         "kind": "command",
         "subject_id": "spec.system",
-        "target": "mix spec.plan"
+        "target": "mix spec.index"
       },
       {
         "covers": [
@@ -1737,7 +1756,7 @@
         "file": ".spec/specs/spec_system.spec.md",
         "kind": "command",
         "subject_id": "spec.system",
-        "target": "mix spec.verify"
+        "target": "mix spec.validate"
       }
     ]
   },
@@ -1747,10 +1766,10 @@
     "decisions": 1,
     "exceptions": 0,
     "findings": 0,
-    "requirements": 73,
+    "requirements": 74,
     "scenarios": 22,
     "subjects": 15,
-    "verifications": 38
+    "verifications": 39
   },
   "verification": {
     "claims": [
@@ -2492,14 +2511,14 @@
         "verification_index": 0
       },
       {
-        "cover_id": "jido_cluster.package.public_namespace",
+        "cover_id": "jido_cluster.package.dependency_sources",
         "file": ".spec/specs/package.spec.md",
         "kind": "source_file",
         "meets_minimum": true,
         "required_strength": "claimed",
         "strength": "linked",
         "subject_id": "jido_cluster.package",
-        "target": "lib/jido/cluster.ex",
+        "target": "mix.exs",
         "verification_index": 1
       },
       {
@@ -2510,8 +2529,19 @@
         "required_strength": "claimed",
         "strength": "linked",
         "subject_id": "jido_cluster.package",
-        "target": "lib/jido/cluster/instance_manager.ex",
+        "target": "lib/jido/cluster.ex",
         "verification_index": 2
+      },
+      {
+        "cover_id": "jido_cluster.package.public_namespace",
+        "file": ".spec/specs/package.spec.md",
+        "kind": "source_file",
+        "meets_minimum": true,
+        "required_strength": "claimed",
+        "strength": "linked",
+        "subject_id": "jido_cluster.package",
+        "target": "lib/jido/cluster/instance_manager.ex",
+        "verification_index": 3
       },
       {
         "cover_id": "jido_cluster.partition_policy.freeze_uses_connected_quorum",
@@ -2895,7 +2925,7 @@
         "required_strength": "claimed",
         "strength": "claimed",
         "subject_id": "spec.system",
-        "target": "mix spec.plan",
+        "target": "mix spec.index",
         "verification_index": 3
       },
       {
@@ -2906,7 +2936,7 @@
         "required_strength": "claimed",
         "strength": "claimed",
         "subject_id": "spec.system",
-        "target": "mix spec.verify",
+        "target": "mix spec.validate",
         "verification_index": 4
       }
     ],
@@ -2915,7 +2945,7 @@
     "strength_summary": {
       "claimed": 76,
       "executed": 0,
-      "linked": 29
+      "linked": 30
     },
     "threshold_failures": 0
   },
