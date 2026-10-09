@@ -97,7 +97,7 @@ defmodule JidoCluster.MixProject do
       {:doctor, "~> 0.21", only: :dev, runtime: false},
       {:spec_led_ex,
        git: "https://github.com/specleddev/specled_ex.git",
-       ref: "b5ef58bea18f966bbab247501b738dc260489013",
+       ref: "f0d20dba6786a8f1dff0d7365a113b23db696fc1",
        only: [:dev, :test],
        runtime: false},
       {:git_hooks, "~> 0.8", only: [:dev, :test], runtime: false},
@@ -136,7 +136,7 @@ defmodule JidoCluster.MixProject do
          File.dir?(Path.expand("../bedrock", __DIR__)) do
       {:bedrock, path: "../bedrock", optional: true}
     else
-      {:bedrock, github: "bedrock-kv/bedrock", branch: "main", optional: true}
+      {:bedrock, "~> 0.7.2", optional: true}
     end
   end
 
