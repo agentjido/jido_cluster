@@ -1,5 +1,10 @@
 # Jido Cluster
 
+> [!IMPORTANT]
+> **The standalone `jido_cluster` package is planned for deprecation.** The plan is to add opt-in clustering to [Jido v3](https://github.com/agentjido/jido) for a limited set of use cases. This work is still in planning.
+>
+> If your application uses `jido_cluster`, stay on a compatible Jido v2 version until migration guidance is available. Before you upgrade, check which clustering features your application needs.
+
 [![Hex.pm](https://img.shields.io/hexpm/v/jido_cluster.svg)](https://hex.pm/packages/jido_cluster)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/jido_cluster/)
 [![CI](https://github.com/agentjido/jido_cluster/actions/workflows/ci.yml/badge.svg)](https://github.com/agentjido/jido_cluster/actions/workflows/ci.yml)
